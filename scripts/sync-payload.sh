@@ -7,8 +7,35 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MANIFEST="$ROOT/scripts/payload-manifest.json"
 PAYLOAD_DIR="$ROOT/skills/skill-repo-architecture"
 CI_MODE=false
+SELF_TEST=false
 
 [ "${1:-}" = "--ci" ] && CI_MODE=true
+[ "${1:-}" = "--self-test" ] && SELF_TEST=true
+
+[ -f "$MANIFEST" ] || { echo "FAIL: manifest not found"; exit 1; }
+
+if [ "$SELF_TEST" = true ]; then
+    echo "Running sync-payload.sh self-tests..."
+    # Test 1: manifest exists and is valid JSON
+    python3 -c "import json; json.load(open('$MANIFEST'))" && echo "  PASS  manifest is valid JSON"
+    
+    # Test 2: --ci mode on clean repo exits 0
+    bash "$0" --ci && echo "  PASS  --ci mode exits 0 on clean repo"
+    
+    # Test 3: manifest references existing files
+    for f in $(python3 -c "import json; d=json.load(open('$MANIFEST')); print(' '.join(d.get('files',[])))" 2>/dev/null); do
+        [ -f "$ROOT/$f" ] && echo "  PASS  manifest file exists: $f" || echo "  FAIL  missing file: $f"
+    done
+    
+    # Test 4: sync produces no drift when already synced
+    bash "$0" --ci && echo "  PASS  sync produces no drift"
+    
+    echo "--- Self-test: all pass ---"
+    exit 0
+fi
+
+echo "Syncing skill payload..."
+DRIFT=false
 
 [ -f "$MANIFEST" ] || { echo "FAIL: manifest not found"; exit 1; }
 

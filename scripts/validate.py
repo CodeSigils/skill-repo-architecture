@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Validate skill-repo-architecture source integrity."""
+
 from __future__ import annotations
 
 import sys
@@ -99,7 +100,35 @@ def check_readme() -> None:
             fail(f"README.md missing: {phrase}")
 
 
+def check_self_test() -> None:
+    """Run internal self-tests for the validation logic."""
+    # Test parse_frontmatter with valid input
+    valid_fm = "---\nname: test\nversion: 1.0\n---\n"
+    data = parse_frontmatter(valid_fm)
+    assert data["name"] == "test"
+    assert data["version"] == "1.0"
+
+    # Test parse_frontmatter rejects invalid
+    try:
+        parse_frontmatter("no frontmatter")
+        assert False, "should have failed"
+    except SystemExit:
+        pass
+
+    try:
+        parse_frontmatter("---\nname: test\n---\n")  # description too short
+        assert False, "should have failed"
+    except SystemExit:
+        pass
+
+    print("  PASS  validate.py self-tests")
+
+
 def main() -> int:
+    if "--self-test" in sys.argv:
+        check_self_test()
+        return 0
+
     check_skill()
     check_references()
     check_readme()
