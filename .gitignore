@@ -1,7 +1,25 @@
-__pycache__/
-.venv/
+# OS junk
+.DS_Store
+Thumbs.db
+*~
 *.swp
 *.swo
+
+# Editor/IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Language build artifacts
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+target/
+dist/
+build/
+output/
 
 # Agent runtime data (user-local, not repo config)
 .hermes/
@@ -9,5 +27,11 @@ __pycache__/
 .cursor/
 .gemini/
 .codex/
+.opencode/
+.agents/
 .open-mem/
 .omo/
+.aider.*
+CLAUDE.local.md
+AGENT.md
+GEMINI.md

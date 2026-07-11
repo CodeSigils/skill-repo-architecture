@@ -33,6 +33,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
+          cache: pip
       - name: Check cross-agent portability
         run: python3 .github/scripts/check-portability.py
       - name: Validate skill source checks
