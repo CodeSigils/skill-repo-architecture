@@ -6,6 +6,7 @@ on:
     paths:
       - 'README.md'
       - 'SECURITY.md'
+      - 'CITATION.cff'
       - 'skills/**/*.md'
       - 'references/**/*.md'
       - 'scripts/**'
@@ -22,9 +23,6 @@ on:
       - 'scripts/**'
       - '.github/scripts/**'
       - '.github/workflows/ci.yml'
-  schedule:
-    - cron: "0 9 * * 1"
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -35,11 +33,12 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.13'
+          python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Install validation dependencies
         run: |
