@@ -11,27 +11,26 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-URL_RE = re.compile(r"https?://[^\s)>]+")
-SEARCH_ROOTS = [
-    ROOT / "README.md",
-    ROOT / "SECURITY.md",
-    ROOT / "CITATION.cff",
-    ROOT / "skills",
-]
+# Improved regex: handles parentheses in URLs
+URL_RE = re.compile(r"https?://[^\s)>]+(?:\([^)]*\))?")
 
 
-# Template/placeholder patterns to skip (not real URLs)
-SKIP_PATTERNS = [
-    re.compile(r"\$[A-Za-z_]+"),           # $name, $pkg, etc.
-    re.compile(r"<[A-Za-z_]+>"),           # <repo>, <pkg>, etc.
-    re.compile(r"\{\{[^}]+\}\}"),          # {{variable}}
-    re.compile(r"%[A-Za-z_]+%"),           # %VAR%
-    re.compile(r"example\.com"),           # example.com placeholder
-    re.compile(r"github\.com/[^/]+/<"),    # github.com/user/<placeholder
-    re.compile(r"github\.com/[^/]+/\$"),   # github.com/user/$placeholder
-    re.compile(r"registry\.npmjs\.org/\$"), # registry.npmjs.org/$placeholder
-    re.compile(r"api\.npmjs\.org/.*[<$\{]"), # api.npmjs.org with placeholders
-]
+def _compile_skip_patterns() -> list[re.Pattern[str]]:
+    """Compile URL template/placeholder patterns to skip."""
+    return [
+        re.compile(r"\$[A-Za-z_]+"),           # $name, $pkg, etc.
+        re.compile(r"<[A-Za-z_]+>"),           # <repo>, <pkg>, etc.
+        re.compile(r"\{\{[^}]+\}\}"),          # {{variable}}
+        re.compile(r"%[A-Za-z_]+%"),           # %VAR%
+        re.compile(r"example\.com"),           # example.com placeholder
+        re.compile(r"github\.com/[^/]+/<"),    # github.com/user/<placeholder
+        re.compile(r"github\.com/[^/]+/\$"),   # github.com/user/$placeholder
+        re.compile(r"registry\.npmjs\.org/\$"), # registry.npmjs.org/$placeholder
+        re.compile(r"api\.npmjs\.org/.*[<$\{]"), # api.npmjs.org with placeholders
+    ]
+
+
+SKIP_PATTERNS = _compile_skip_patterns()
 
 
 def is_template_url(url: str) -> bool:
@@ -43,8 +42,9 @@ def is_template_url(url: str) -> bool:
 
 
 def iter_markdown_files() -> list[Path]:
+    """Find all markdown files to check."""
     files: list[Path] = []
-    for root in SEARCH_ROOTS:
+    for root in (ROOT / "README.md", ROOT / "SECURITY.md", ROOT / "CITATION.cff", ROOT / "skills"):
         if root.is_file():
             files.append(root)
         elif root.exists():
@@ -53,6 +53,7 @@ def iter_markdown_files() -> list[Path]:
 
 
 def iter_urls() -> list[tuple[Path, str]]:
+    """Extract URLs from markdown files, filtering templates."""
     pairs: list[tuple[Path, str]] = []
     for path in iter_markdown_files():
         text = path.read_text(encoding="utf-8")
@@ -63,7 +64,17 @@ def iter_urls() -> list[tuple[Path, str]]:
     return pairs
 
 
-def request_url(url: str, method: str) -> str | None:
+def request_url(url: str, method: str, *, depth: int = 0) -> str | None:
+    """Request URL and return error string if failed, None if OK.
+
+    Args:
+        url: URL to check
+        method: HTTP method (HEAD or GET)
+        depth: Recursion depth for 405 retry (max 1)
+    """
+    if depth > 1:
+        return "max retry depth exceeded"
+
     request = urllib.request.Request(
         url,
         method=method,
@@ -75,11 +86,15 @@ def request_url(url: str, method: str) -> str | None:
                 return None
             return f"HTTP {response.status}"
     except urllib.error.HTTPError as exc:
-        if method == "HEAD" and exc.code == 405:
-            return request_url(url, "GET")
+        if method == "HEAD" and exc.code == 405 and depth == 0:
+            return request_url(url, "GET", depth=depth + 1)
         return f"HTTP {exc.code}"
-    except Exception as exc:  # noqa: BLE001 - report URL check failure
-        return str(exc)
+    except urllib.error.URLError as exc:
+        return str(exc.reason)
+    except TimeoutError:
+        return "timeout"
+    except ValueError as exc:
+        return f"invalid URL: {exc}"
 
 
 def main() -> int:

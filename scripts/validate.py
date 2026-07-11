@@ -12,8 +12,15 @@ REF_DIR = SKILL_DIR / "references"
 IGNORE_EXPIRY = {"PASS", None}
 
 ALLOWED_FIELDS = {
-    "name", "description", "version", "author", "license",
-    "tier", "ref", "compatibility", "metadata",
+    "name",
+    "description",
+    "version",
+    "author",
+    "license",
+    "tier",
+    "ref",
+    "compatibility",
+    "metadata",
 }
 REQUIRED_SECTIONS = {"## When to Use", "## Verification Checklist"}
 
@@ -30,12 +37,13 @@ def parse_frontmatter(text: str) -> dict[str, str]:
         _, raw, _ = text.split("---\n", 2)
     except ValueError:
         fail("SKILL.md frontmatter is not closed")
-    data = {}
+
+    data: dict[str, str] = {}
     for line in raw.splitlines():
         if not line.strip() or ":" not in line:
             continue
-        k, v = line.split(":", 1)
-        data[k.strip()] = v.strip().strip('"')
+        key, value = line.split(":", 1)
+        data[key.strip()] = value.strip().strip('"')
     extra = set(data) - ALLOWED_FIELDS
     if extra:
         fail(f"unsupported frontmatter fields: {sorted(extra)}")
@@ -47,14 +55,14 @@ def parse_frontmatter(text: str) -> dict[str, str]:
 
 
 def check_skill() -> None:
-    text = (SKILL).read_text(encoding="utf-8")
+    text = SKILL.read_text(encoding="utf-8")
     body = text.split("---\n", 2)[2] if text.startswith("---\n") else text
     parse_frontmatter(text)
-    for sec in REQUIRED_SECTIONS:
+    for sec in sorted(REQUIRED_SECTIONS):
         if sec not in body:
             fail(f"missing section: {sec}")
     # Portability check on body
-    for needle in [".hermes", "hermes-verify"]:
+    for needle in (".hermes", "hermes-verify"):
         if needle in body:
             fail(f"body contains non-portable runtime marker: {needle}")
 
@@ -86,7 +94,7 @@ def check_readme() -> None:
         fail("README.md missing")
     text = readme.read_text()
     normalized = " ".join(text.split())
-    for phrase in ["skills/skill-repo-architecture/", "agent skill repositor"]:
+    for phrase in ("skills/skill-repo-architecture/", "agent skill repositor"):
         if phrase not in normalized:
             fail(f"README.md missing: {phrase}")
 
