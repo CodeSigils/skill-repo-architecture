@@ -31,13 +31,23 @@ def fail(msg: str) -> None:
     raise SystemExit(1)
 
 
-def parse_frontmatter(text: str) -> dict[str, str]:
+def parse_frontmatter(text: str, *, strict: bool = True) -> dict[str, str]:
+    """Parse YAML frontmatter from text.
+
+    Args:
+        text: Input text starting with '---'
+        strict: If True, raise SystemExit on failure. If False, return empty dict on failure.
+    """
     if not text.startswith("---\n"):
-        fail("SKILL.md does not start with YAML frontmatter")
+        if strict:
+            fail("SKILL.md does not start with YAML frontmatter")
+        return {}
     try:
         _, raw, _ = text.split("---\n", 2)
     except ValueError:
-        fail("SKILL.md frontmatter is not closed")
+        if strict:
+            fail("SKILL.md frontmatter is not closed")
+        return {}
 
     data: dict[str, str] = {}
     for line in raw.splitlines():
@@ -45,6 +55,10 @@ def parse_frontmatter(text: str) -> dict[str, str]:
             continue
         key, value = line.split(":", 1)
         data[key.strip()] = value.strip().strip('"')
+    return data
+
+
+def validate_frontmatter(data: dict[str, str]) -> None:
     extra = set(data) - ALLOWED_FIELDS
     if extra:
         fail(f"unsupported frontmatter fields: {sorted(extra)}")
@@ -52,13 +66,13 @@ def parse_frontmatter(text: str) -> dict[str, str]:
         fail("frontmatter name must be skill-repo-architecture")
     if len(data.get("description", "").split()) < 12:
         fail("description too short to trigger reliably")
-    return data
 
 
 def check_skill() -> None:
     text = SKILL.read_text(encoding="utf-8")
     body = text.split("---\n", 2)[2] if text.startswith("---\n") else text
-    parse_frontmatter(text)
+    data = parse_frontmatter(text)
+    validate_frontmatter(data)
     for sec in sorted(REQUIRED_SECTIONS):
         if sec not in body:
             fail(f"missing section: {sec}")
@@ -103,20 +117,26 @@ def check_readme() -> None:
 def check_self_test() -> None:
     """Run internal self-tests for the validation logic."""
     # Test parse_frontmatter with valid input
-    valid_fm = "---\nname: test\nversion: 1.0\n---\n"
+    valid_fm = "---\nname: skill-repo-architecture\nversion: 1.0\n---\n"
     data = parse_frontmatter(valid_fm)
-    assert data["name"] == "test"
+    assert data["name"] == "skill-repo-architecture"
     assert data["version"] == "1.0"
 
-    # Test parse_frontmatter rejects invalid
+    # Test parse_frontmatter rejects invalid (non-strict mode)
+    assert parse_frontmatter("no frontmatter", strict=False) == {}
+    # With strict=False, short description still parses but validate_frontmatter would fail
+    parsed = parse_frontmatter("---\nname: test\n---\n", strict=False)
+    assert "name" in parsed
+
+    # Test validate_frontmatter
     try:
-        parse_frontmatter("no frontmatter")
-        assert False, "should have failed"
+        validate_frontmatter({"name": "skill-repo-architecture", "description": "a " * 12})
+        print("  PASS  validate_frontmatter valid")
     except SystemExit:
-        pass
+        assert False, "should not fail"
 
     try:
-        parse_frontmatter("---\nname: test\n---\n")  # description too short
+        validate_frontmatter({"name": "skill-repo-architecture", "description": "short"})
         assert False, "should have failed"
     except SystemExit:
         pass

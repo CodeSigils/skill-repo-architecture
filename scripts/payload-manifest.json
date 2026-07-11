@@ -1,5 +1,5 @@
 {
-  "files": [],
-  "scripts": [],
+  "files": ["skills/skill-repo-architecture/SKILL.md"],
+  "scripts": ["verify-urls.py"],
   "references": "*"
 }

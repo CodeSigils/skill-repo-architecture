@@ -20,12 +20,21 @@ import json
 import sys
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "docs" / "evidence-urls.json"
+
+
+@dataclass(frozen=True)
+class UrlCheckResult:
+    """Result of a single URL check."""
+    status: int | str
+    redirects: int
+    content: str | None
 
 
 def load_manifest(path: Path = MANIFEST_PATH) -> list[dict[str, Any]]:
@@ -56,8 +65,8 @@ def validate_entry(entry: dict[str, Any]) -> None:
             raise ValueError("expected_statuses must contain integers")
 
 
-def check_url(url: str, content_type: str | None = None) -> tuple[int | str, int, str | None]:
-    """Return (final_status_code, redirect_count, content_or_error) for one URL.
+def check_url(url: str, content_type: str | None = None) -> UrlCheckResult:
+    """Return UrlCheckResult for one URL.
 
     When content_type is "json", captures response body and validates JSON.
     """
@@ -76,19 +85,19 @@ def check_url(url: str, content_type: str | None = None) -> tuple[int | str, int
                 body = response.read().decode("utf-8")
                 try:
                     json.loads(body)
-                    return status, redirect_count, "VALID"
+                    return UrlCheckResult(status, redirect_count, "VALID")
                 except (json.JSONDecodeError, ValueError):
-                    return status, redirect_count, "INVALID_JSON"
-            return status, redirect_count, None
+                    return UrlCheckResult(status, redirect_count, "INVALID_JSON")
+            return UrlCheckResult(status, redirect_count, None)
 
     except urllib.error.HTTPError as exc:
-        return exc.code, 0, f"HTTP {exc.code}"
+        return UrlCheckResult(exc.code, 0, f"HTTP {exc.code}")
     except urllib.error.URLError as exc:
-        return "ERROR", 0, str(exc.reason)
+        return UrlCheckResult("ERROR", 0, str(exc.reason))
     except TimeoutError:
-        return "TIMEOUT", 0, "timeout"
+        return UrlCheckResult("TIMEOUT", 0, "timeout")
     except ValueError as exc:
-        return "ERROR", 0, f"invalid URL: {exc}"
+        return UrlCheckResult("ERROR", 0, f"invalid URL: {exc}")
 
 
 def classify_status(status: int | str, expected_statuses: list[int]) -> str:
@@ -157,15 +166,15 @@ def main() -> int:
             continue
 
         content_type = entry.get("content_type")
-        status, redirects, content = check_url(entry["url"], content_type)
+        result = check_url(entry["url"], content_type)
         expected = entry["expected_statuses"]
-        note = classify_status(status, expected)
+        note = classify_status(result.status, expected)
         if note == "DRIFT":
             drift_found = True
 
         # Content check trumps status check for JSON endpoints
-        content_label = content or "—"
-        if content_type == "json" and content == "INVALID_JSON":
+        content_label = result.content or "—"
+        if content_type == "json" and result.content == "INVALID_JSON":
             note = "BROKEN"
             drift_found = True
 
@@ -173,8 +182,8 @@ def main() -> int:
         marker = "  ← DRIFT" if note == "DRIFT" else ""
         marker = "  ← BROKEN" if note == "BROKEN" else marker
         print(
-            f"  {entry['name']:<30s} {str(status):<8s} {expected_text:<12s} "
-            f"{str(redirects):<9s} {content_label:<12s} {note:<10s}{marker}"
+            f"  {entry['name']:<30s} {str(result.status):<8s} {expected_text:<12s} "
+            f"{str(result.redirects):<9s} {content_label:<12s} {note:<10s}{marker}"
         )
 
     if drift_found:
