@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this work in your research, please cite it as below."
+authors:
+  - family-names: "CodeSigils"
+title: "Skill Repo Architecture"
+version: 1.0.0
+date-released: 2026-07-11
+license: MIT
+type: software
+description: "Design principles for structuring, shipping, and maintaining agent skill repositories at the repo level — methodology over collection, declared shipping boundaries, proportionate anti-drift, heuristic discovery, self-verifying instructions, cross-project pattern preservation, file-swamp diagnosis, portability gradations, information density analysis, and evaluation rubric/CI triage."
