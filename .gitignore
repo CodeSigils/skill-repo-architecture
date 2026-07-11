@@ -1,0 +1,13 @@
+__pycache__/
+.venv/
+*.swp
+*.swo
+
+# Agent runtime data (user-local, not repo config)
+.hermes/
+.claude/
+.cursor/
+.gemini/
+.codex/
+.open-mem/
+.omo/

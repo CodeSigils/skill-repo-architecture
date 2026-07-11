@@ -1,0 +1,43 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'README.md'
+      - 'SECURITY.md'
+      - 'skills/**/*.md'
+      - 'references/**/*.md'
+      - 'scripts/**'
+      - '.github/scripts/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'README.md'
+      - 'SECURITY.md'
+      - 'skills/**/*.md'
+      - 'references/**/*.md'
+      - 'scripts/**'
+      - '.github/scripts/**'
+      - '.github/workflows/ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Check cross-agent portability
+        run: python3 .github/scripts/check-portability.py
+      - name: Validate skill source checks
+        run: python3 scripts/validate.py
+      - name: Payload sync check
+        run: bash scripts/sync-payload.sh --ci
+      - name: Shell script syntax
+        run: bash -n scripts/sync-payload.sh
