@@ -37,5 +37,4 @@ AGENT.md
 GEMINI.md
 
 # Skill payload (build artifact - source is root files)
-skills/skill-repo-architecture/scripts/
-skills/skill-repo-architecture/skills/
+skills/skill-repo-architecture/
