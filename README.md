@@ -94,7 +94,7 @@ For agents that support external skill directories, point the config at
 ## How to Use
 
 1. **Load `skill-repo-architecture`** when designing or reviewing a skill repo.
-2. **The skill teaches 10 design principles** with decision frameworks for each.
+2. **The skill teaches 8 design principles** with decision frameworks for each.
 3. **Use the companion methodology skills** for related tasks:
    - [`skill-discovery`](https://github.com/CodeSigils/skill-discovery) — how to *find* skills in catalogs and marketplaces
    - [`repo-health-and-sync-skill`](https://github.com/CodeSigils/repo-health-and-sync-skill) — how to *audit* any repo's health
@@ -112,8 +112,11 @@ Each shipped file in `skills/` is checked by CI for agent-specific references
 (`skill_view`, `hermes skills`, platform adapter paths, etc.). If a commit
 adds a platform-specific command, CI fails before it reaches the runtime.
 
-The current surface is fully cross-agent compatible — zero platform
-references in any shipped skill file or reference.
+The shipped `SKILL.md` is cross-agent compatible and contains no
+platform-specific runtime commands. Reference files may include marked
+platform-specific examples when explaining portability or migration patterns;
+the portability gate allows those only in reference material, not in the
+runtime procedure.
 
 ---
 
@@ -138,12 +141,14 @@ skill-repo-architecture/
 ├── LICENSE                     # MIT
 ├── .gitignore
 ├── .github/
-│   ├── workflows/ci.yml        # 4-step CI pipeline
+│   ├── workflows/ci.yml        # validation pipeline
 │   └── scripts/check-portability.py  # cross-agent portability gate
 ├── scripts/
-│   ├── payload-manifest.json   # declares shipped files
-│   ├── sync-payload.sh         # builds payload from manifest
+│   ├── payload-manifest.json   # declares mirrored runtime files
+│   ├── sync-payload.sh         # verifies/syncs payload references
 │   └── validate.py             # skill source integrity checks
+├── docs/
+│   └── evidence-urls.json      # machine-readable URL expectations
 ├── references/                 # per-principle reference detail
 │   ├── agent-concepts-study-cross-project-patterns.md
 │   ├── dev-workflow-patterns.md
@@ -151,16 +156,19 @@ skill-repo-architecture/
 │   ├── npm-publishing-for-agent-skills.md
 │   ├── operational-patterns.md
 │   ├── payload-manifest-pattern.md
+│   ├── portability-migration.md
 │   ├── portability-patterns.md
 │   └── skill-repo-audit-procedure.md
 └── skills/
     └── skill-repo-architecture/
-        ├── SKILL.md            # the methodology (~450 lines)
+        ├── SKILL.md            # compact runtime procedure
         └── references/         # synced from root references/
 ```
 
-Shipping boundary: `skills/skill-repo-architecture/` is the runtime payload.
-Everything else is development infrastructure.
+Shipping boundary: `skills/skill-repo-architecture/` is the tracked runtime
+payload. Root `references/` are the editable source copy; the payload
+references are kept byte-identical by `scripts/sync-payload.sh`. Everything
+else is development infrastructure.
 
 ---
 
@@ -169,8 +177,12 @@ Everything else is development infrastructure.
 ```bash
 python3 .github/scripts/check-portability.py   # cross-agent gate
 python3 scripts/validate.py                     # source integrity
+python3 scripts/validate.py --self-test         # validation self-test
+python3 scripts/verify-urls.py                  # URL evidence check
 bash scripts/sync-payload.sh --ci               # payload in sync
+bash scripts/sync-payload.sh --self-test        # sync script self-test
 bash -n scripts/sync-payload.sh                 # shell syntax
+ruff check scripts .github/scripts              # Python lint
 ```
 
 ---
@@ -185,6 +197,7 @@ bash -n scripts/sync-payload.sh                 # shell syntax
 | `npm-publishing-for-agent-skills.md` | Evaluating and publishing an agent-first tool on npm |
 | `operational-patterns.md` | CI triage, fallback chains, evidence-base as architecture |
 | `payload-manifest-pattern.md` | JSON manifest + bash sync implementation details |
+| `portability-migration.md` | Migration path from platform-specific to cross-agent skill instructions |
 | `portability-patterns.md` | Three-tier gradation, decision tree, portability CI gate |
 | `skill-repo-audit-procedure.md` | 9-phase audit for skill repositories |
 

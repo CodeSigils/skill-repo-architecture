@@ -36,5 +36,4 @@ CLAUDE.local.md
 AGENT.md
 GEMINI.md
 
-# Skill payload (build artifact - source is root files)
-skills/skill-repo-architecture/
+# Agent runtime payloads are tracked under skills/.

@@ -4,13 +4,14 @@
 from __future__ import annotations
 
 import sys
+from contextlib import redirect_stderr
+from io import StringIO
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL_DIR = ROOT / "skills" / "skill-repo-architecture"
 SKILL = SKILL_DIR / "SKILL.md"
 REF_DIR = SKILL_DIR / "references"
-IGNORE_EXPIRY = {"PASS", None}
 
 ALLOWED_FIELDS = {
     "name",
@@ -23,7 +24,23 @@ ALLOWED_FIELDS = {
     "compatibility",
     "metadata",
 }
-REQUIRED_SECTIONS = {"## When to Use", "## Verification Checklist"}
+REQUIRED_SECTIONS = {
+    "## When to Use",
+    "## Default Procedure",
+    "## Reference Routing",
+    "## Verification Checklist",
+}
+REQUIRED_REFERENCES = {
+    "agent-concepts-study-cross-project-patterns.md",
+    "dev-workflow-patterns.md",
+    "file-swamp-patterns.md",
+    "npm-publishing-for-agent-skills.md",
+    "operational-patterns.md",
+    "payload-manifest-pattern.md",
+    "portability-migration.md",
+    "portability-patterns.md",
+    "skill-repo-audit-procedure.md",
+}
 
 
 def fail(msg: str) -> None:
@@ -69,6 +86,8 @@ def validate_frontmatter(data: dict[str, str]) -> None:
 
 
 def check_skill() -> None:
+    if not SKILL.exists():
+        fail("skills/skill-repo-architecture/SKILL.md missing")
     text = SKILL.read_text(encoding="utf-8")
     body = text.split("---\n", 2)[2] if text.startswith("---\n") else text
     data = parse_frontmatter(text)
@@ -83,17 +102,13 @@ def check_skill() -> None:
 
 
 def check_references() -> None:
-    ref_dir = ROOT / "references"
-    if not ref_dir.exists():
-        fail("references directory missing")
-    skill_ref_dir = SKILL_DIR / "references"
-    if not skill_ref_dir.exists():
+    if not REF_DIR.exists():
         fail("payload references directory missing")
-    # Root and payload must match
-    root_files = sorted(ref_dir.glob("*.md"))
-    payload_files = sorted(skill_ref_dir.glob("*.md"))
-    root_set = {p.name for p in root_files}
-    payload_set = {p.name for p in payload_files}
+    root_ref_dir = ROOT / "references"
+    if not root_ref_dir.exists():
+        fail("root references directory missing")
+    root_set = {p.name for p in root_ref_dir.glob("*.md")}
+    payload_set = {p.name for p in REF_DIR.glob("*.md")}
     if root_set != payload_set:
         extra = payload_set - root_set
         missing = root_set - payload_set
@@ -101,6 +116,15 @@ def check_references() -> None:
             fail(f"payload has extra references: {sorted(extra)}")
         if missing:
             fail(f"payload missing references: {sorted(missing)}")
+    actual = payload_set
+    missing = REQUIRED_REFERENCES - actual
+    if missing:
+        fail(f"missing references: {sorted(missing)}")
+
+    text = SKILL.read_text(encoding="utf-8")
+    for name in sorted(REQUIRED_REFERENCES):
+        if f"references/{name}" not in text:
+            fail(f"SKILL.md does not route reference: {name}")
 
 
 def check_readme() -> None:
@@ -136,7 +160,8 @@ def check_self_test() -> None:
         assert False, "should not fail"
 
     try:
-        validate_frontmatter({"name": "skill-repo-architecture", "description": "short"})
+        with redirect_stderr(StringIO()):
+            validate_frontmatter({"name": "skill-repo-architecture", "description": "short"})
         assert False, "should have failed"
     except SystemExit:
         pass

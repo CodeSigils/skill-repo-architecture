@@ -39,12 +39,12 @@ def scan_file(path: Path) -> list[tuple[Path, int, str, str]]:
     violations: list[tuple[Path, int, str, str]] = []
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
-    # File-level exemption: if any of the first 3 lines contains the exemption
-    # marker, skip the entire file. This allows educational documents about
-    # portability to reference platform-specific patterns.
-    for i in range(min(3, len(lines))):
-        if "# portability: allow-platform-ref" in lines[i]:
-            return violations
+    # Reference files may intentionally discuss platform-specific examples.
+    # Shipped SKILL.md files must use only line-level exemptions.
+    if path.name != "SKILL.md":
+        for i in range(min(3, len(lines))):
+            if "# portability: allow-platform-ref" in lines[i]:
+                return violations
     for line_no, line in enumerate(lines, start=1):
         if "# portability: allow-platform-ref" in line:
             continue
