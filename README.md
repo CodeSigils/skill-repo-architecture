@@ -4,14 +4,13 @@
 [![CI](https://github.com/CodeSigils/skill-repo-architecture/actions/workflows/ci.yml/badge.svg)](https://github.com/CodeSigils/skill-repo-architecture/actions/workflows/ci.yml)
 [![Skill format](https://img.shields.io/badge/skill%20format-agentskills.io-blue)](https://agentskills.io/specification)
 
-A portable-format methodology candidate for designing, reviewing, and tightening
-agent skill repositories. It starts by classifying what the repository ships,
-then separates authoring source, runtime payload, install artifact, and maintainer
-infrastructure before recommending validation or release machinery.
+**Architecture follows the artifact.** This methodology helps an agent design,
+review, and tighten skill repositories without forcing the same structure onto a
+static Markdown skill, routed skill pack, CLI-backed skill, and published plugin.
 
-The central rule is simple: architecture follows the artifact. A static Markdown
-skill, a routed skill pack, a CLI-backed skill, and a published plugin should not
-receive the same structure merely because each contains a `SKILL.md`.
+It classifies what the repository ships, separates authoring source, runtime
+payload, install artifact, and maintainer infrastructure, then recommends only
+the validation and release controls justified by those boundaries.
 
 ## What it covers
 
@@ -29,6 +28,42 @@ receive the same structure merely because each contains a `SKILL.md`.
 Use `repo-health-and-sync-skill` for general repository health and
 `skill-discovery` for finding third-party skills. This skill focuses specifically
 on the architecture of repositories that create or distribute skills.
+
+## What it does in practice
+
+Suppose you ask an agent:
+
+> Review this repository. It contains a CLI, an npm package, and a `SKILL.md`.
+> Tell me what should ship, whether it needs a payload manifest, and which checks
+> belong in pull requests.
+
+The methodology guides the agent to:
+
+1. classify the repository as a tool-backed skill rather than a Markdown-only
+   skill;
+2. identify the CLI source as authoring source, the activated instructions and
+   invoked code as runtime payload, the npm tarball and skill directory as
+   separate install artifacts, and tests or release scripts as maintainer
+   infrastructure;
+3. inspect each artifact inventory independently instead of applying a raw
+   script-to-skill ratio;
+4. keep deterministic package, link, unit, and staged-install checks in pull
+   requests while moving registry monitoring outside that lane; and
+5. report the smallest changes needed, with evidence and skipped checks.
+
+For a Markdown-only skill, the result is deliberately smaller: keep one
+canonical skill directory, avoid a generated mirror, validate its structure and
+references, and add behavioral fixtures only when the procedure makes meaningful
+decisions.
+
+## Scope
+
+| Use this skill for                                             | Use another workflow for                       |
+| -------------------------------------------------------------- | ---------------------------------------------- |
+| Designing or auditing a skill repository                       | General repository-health audits               |
+| Declaring source, runtime, artifact, and maintainer boundaries | Domain-specific skill content authoring        |
+| Choosing payload, adapter, validation, and release patterns    | Finding or installing third-party skills       |
+| Reducing unowned files or unnecessary generated copies         | Ordinary feature implementation or code review |
 
 ## Install
 
@@ -64,20 +99,42 @@ and certification requirements.
 
 ## Use
 
-Ask an agent with the skill installed to:
+1. Make `skill-repo-architecture` discoverable to the agent.
+2. Ask it to design or audit a skill repository, naming any active distribution
+   targets or portability requirements.
+3. Expect an archetype classification, four-boundary map, artifact-specific
+   controls, prioritized recommendations, and an exact record of checks run or
+   skipped.
 
-- design a new skill repository;
-- audit an existing skill repository's boundaries;
-- decide whether a payload manifest or generated copy is justified;
-- reduce file-swamp without deleting required product code;
-- add validation and behavioral evaluation proportionate to the artifact;
-- extract a portable core from platform-specific instructions.
+Typical requests include:
 
-The runtime procedure first classifies the repository, maps the four boundaries,
-and then selects controls appropriate to the observed artifact.
+- “Design a repository for a portable Markdown-only skill.”
+- “Audit this skill pack's router and standalone loading behavior.”
+- “Does this CLI-backed skill need a generated payload manifest?”
+- “Extract a portable core from these platform-specific instructions.”
 
 The reviewable behavior contract lives in
 [`evals/cases/architecture-audit.json`](evals/cases/architecture-audit.json).
+
+## Runtime payload
+
+Only [`skills/skill-repo-architecture/`](skills/skill-repo-architecture/) ships.
+It contains one `SKILL.md`, eight conditionally loaded references, and no runtime
+scripts or configuration:
+
+| Reference                            | Load when                                                   |
+| ------------------------------------ | ----------------------------------------------------------- |
+| `skill-repo-audit-procedure.md`      | Running a complete architecture audit                       |
+| `file-swamp-patterns.md`             | File ownership, consumers, or growth is unclear             |
+| `portability-patterns.md`            | Selecting portability tier or bounding compatibility claims |
+| `payload-manifest-pattern.md`        | A real install or publication artifact must be assembled    |
+| `dev-workflow-patterns.md`           | Choosing canonical source, adapters, or drift handling      |
+| `operational-patterns.md`            | Designing CI lanes and behavioral evaluation                |
+| `npm-publishing-for-agent-skills.md` | The skill wraps a publishable Node.js tool                  |
+| `portability-migration.md`           | Extracting a portable core from platform coupling           |
+
+The payload is authored in place. There is no root reference mirror, generated
+payload, runtime dependency, or synchronization step.
 
 ## Architecture
 
@@ -104,10 +161,8 @@ skill-repo-architecture/
         └── references/
 ```
 
-Only `skills/skill-repo-architecture/` ships. The tracked payload is also the
-authoring source and install artifact, so no manifest, mirror, or sync script is
-needed. CI, fixtures, evidence contracts, and repository documentation are
-maintainer infrastructure.
+The tracked payload is both authoring source and install artifact. CI, fixtures,
+evidence contracts, and repository documentation are maintainer infrastructure.
 
 ## Design examples behind the methodology
 
@@ -159,6 +214,15 @@ non-blocking certification activity.
 - `README.md` owns installation, repository layout, and verification commands.
 - `docs/` and any research notes are evidence, not runtime authority.
 - `AGENTS.md` routes maintainers to these sources without repeating them.
+
+## See also
+
+- [`skill-discovery`](https://github.com/CodeSigils/skill-discovery) — find and
+  assess reusable skills.
+- [`repo-health-and-sync-skill`](https://github.com/CodeSigils/repo-health-and-sync-skill)
+  — audit general repository health and release readiness.
+- [`py-review-skill`](https://github.com/CodeSigils/py-review-skill) — review
+  Python code with focused routing and rules.
 
 ## License
 
