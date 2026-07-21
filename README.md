@@ -161,7 +161,8 @@ skill-repo-architecture/
 │   └── workflows/ci.yml
 ├── docs/
 │   ├── evidence-urls.json       # external monitoring contract
-│   └── portability-contract.md  # compatibility evidence levels and status
+│   ├── portability-contract.md  # compatibility evidence levels and status
+│   └── research/                # dated maintainer evidence; not shipped
 ├── evals/
 │   └── cases/
 │       └── architecture-audit.json
@@ -189,6 +190,19 @@ evidence contracts, and repository documentation are maintainer infrastructure.
 
 These are transfer patterns, not templates. The skill asks whether the same
 artifact and failure mode exist before recommending the corresponding control.
+
+## Research provenance
+
+Maintainer research is preserved as dated evidence, not runtime authority:
+
+- [repository structure snapshot](docs/research/repository-structure-snapshot.md)
+  records four public repositories at pinned Git tree objects;
+- [platform skill support snapshot](docs/research/platform-skill-support-snapshot.md)
+  compares current official Agent Skills, Codex, Claude Code, Gemini CLI, and
+  Hermes documentation.
+
+Refresh volatile claims before using them to change compatibility status or
+runtime guidance.
 
 ## Verify
 
