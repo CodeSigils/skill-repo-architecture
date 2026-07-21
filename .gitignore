@@ -10,23 +10,58 @@ Thumbs.db
 .idea/
 *.sublime-*
 
+# Temporary files and local caches
+tmp/
+.tmp/
+.cache/
+*.log
+
 # Local environment and secrets
 .env
 .env.*
 !.env.example
 !.env.*.example
 
-# Language build artifacts
-.venv/
-node_modules/
+# Python bytecode and tool caches
 __pycache__/
-*.pyc
+*.py[codz]
+*$py.class
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.pytype/
+.pyre/
+.tox/
+.nox/
+.uv-cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Test and coverage artifacts
+.coverage
+.coverage.*
+coverage/
+coverage.xml
+htmlcov/
+
+# Build and distribution artifacts
+node_modules/
 *.egg-info/
+*.egg
+.eggs/
 target/
 dist/
 build/
 output/
+
+# Model evaluation workspaces and captured output
+.codex-regression/
+artifacts/
 
 # Agent runtime data (user-local, not repo config)
 .hermes/
