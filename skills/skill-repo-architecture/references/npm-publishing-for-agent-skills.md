@@ -1,162 +1,69 @@
-# npm Publishing for Agent-First Tools
+# npm Publishing for Tool-Backed Skills
 
-Methodology for evaluating and publishing an agent skill as an npm package.
-Covers landscape analysis, naming strategy, and dual-use repo design.
+Use npm when the repository contains a Node.js tool that is useful outside the
+agent runtime. Do not publish a Markdown-only skill to npm merely to gain another
+installation command.
 
-## When to consider npm publishing
+## Admission criteria
 
-An agent skill may outgrow its skill-only delivery channel when:
+npm is a good fit when:
 
-- The CLI is useful outside any agent runtime (standalone formatting, linting,
-  CI pipelines, pre-commit hooks)
-- The tool has zero runtime dependencies and can be installed instantly
-  (`npx <package>`)
-- Users cannot or will not run the agent's skill installer
-- The tool is referenced in non-agent documentation (CI configs, Makefiles,
-  VS Code task definitions)
+- a standalone CLI or library is the real runtime product;
+- Node.js is an honest, documented prerequisite;
+- users benefit from package-manager installation, `npx`, or programmatic use;
+- the package has meaningful tests independent of agent activation;
+- the project can maintain versions and releases as a software product.
 
-## Landscape survey methodology
+Keep skill-catalog installation as the primary path when the payload is only
+instructions, references, templates, or small agent-invoked scripts.
 
-Before publishing, survey existing npm packages in the same functional space
-to understand positioning, discoverability, and differentiation.
+## Artifact boundaries
 
-### Discovery commands
+A dual-use repository has at least two install artifacts:
 
-```bash
-# Broad keyword search
-npm search <keyword1> <keyword2> --json | python3 -c "
-import json, sys
-for pkg in json.load(sys.stdin)[:30]:
-    print(f\"{pkg['name']:40} {pkg['description'][:80]}\")
-"
+1. the npm tarball;
+2. the agent skill directory.
 
-# Check specific names
-for name in "candidate-name" "@scope/candidate-name"; do
-  result=$(curl -s "https://registry.npmjs.org/$name" \
-    | python3 -c "import json,sys; d=json.load(sys.stdin); \
-    print('TAKEN' if d.get('name') else 'AVAILABLE')" 2>/dev/null)
-  echo "$name: $result"
-done
-```
+Declare and test each inventory independently. `package.json.files` should own
+the npm tarball. The canonical skill directory or a dedicated skill manifest
+should own the agent payload. Do not use one ambiguous list when the artifacts
+contain different files.
 
-### What to evaluate per competitor
+Prefer one implementation source. The skill should invoke the installed CLI or
+reference canonical package code; avoid copying the tool implementation into a
+second tracked tree. If an offline bundled skill is required, treat it as a
+separate generated artifact with a staged-install test.
 
-| Dimension | What to check | Command |
-|-----------|---------------|---------|
-| Description & keywords | Positioning | `npm view <pkg> description keywords` |
-| Version & freshness | Active maintenance | `npm view <pkg> time --json` → min/max dates |
-| Download count | Adoption | `curl -s 'https://api.npmjs.org/downloads/point/last-month/<pkg>'` |
-| Dependencies | Weight, risk | `npm view <pkg> dependencies` |
-| Runtime engine | Node.js req | `npm view <pkg> engines` |
-| Binary/CLI presence | Install-and-run | `npm view <pkg> bin` |
-| Native deps | Platform risk | `npm view <pkg> optionalDependencies` (binary addons) |
-| Peer deps | Version conflict | `npm view <pkg> peerDependencies` |
+## Package controls
 
-### Market-positioning analysis
+For a published package, consider:
 
-For each competitor, rate:
+- an exact runtime `files` allowlist;
+- unit and integration tests for the CLI or library;
+- `npm pack --dry-run` or an equivalent inventory assertion;
+- installation and command smoke tests from the packed tarball;
+- version alignment among `package.json`, skill metadata when present, tags,
+  and releases;
+- a lockfile for development dependencies;
+- provenance and immutable CI actions appropriate to the release risk;
+- a prepublish gate that runs deterministic tests without network-dependent
+  monitoring.
 
-1. **Feature overlap** — does it do what your tool does?
-2. **Dependency weight** — zero-dependency vs remark/unified stack (12-60+ packages)
-3. **Agent-awareness** — does it have pipe safety, structural drift detection, or
-   any agent-specific guardrails?
-4. **Platform scope** — native binary (per-platform), WASM, or pure JS?
+Zero runtime dependencies can simplify installation and supply-chain review, but
+it is a product choice rather than a universal skill-repository requirement.
 
-**Key insight:** Pure-JS-zero-dep is rare. Most popular formatters (hongdown,
-markdownlint-rs) ship compiled native binaries. The remark/unified-based ones
-pull in 12-60+ packages. A zero-dep pure-JS formatter with agent guardrails
-occupies a unique niche that nothing on npm covers.
+## Naming and discovery
 
-## Name strategy
+Verify package-name availability at decision time through documented npm
+interfaces. Do not embed availability, popularity, download counts, or competitor
+rankings in the runtime skill; those facts decay.
 
-| Consideration | Question to ask |
-|---------------|-----------------|
-| Audience | Is this a "formatter for agents" or "a formatter that supports agents"? |
-| Scope | Does the name cover all supported dialects (GFM, MDX, plain Markdown)? |
-| Redundancy | "gfm-md-formatter" → "GFM Markdown Markdown formatter" (like PIN number) |
-| Discoverability | Will people search for this by workflow (e.g., "agent markdown") or by function (e.g., "gfm formatter")? |
-| Scalability | Does the name box you in if you add Obsidian wiki links, Mermaid, or other dialects later? |
-| Scope ownership | Bare name vs `@scope/name` — scoped names are safer but less discoverable from fresh `npm search` |
+The repository, package, CLI binary, and skill may have different names, but the
+README must map them explicitly. Choose the CLI name for shell usability, the
+package name for registry discovery, and the skill name for trigger clarity.
 
-### Real survey results (July 2026)
+## Release separation
 
-From the agents-markdown-formatter analysis:
-
-| Name | Status | Notes |
-|------|--------|-------|
-| `markdown-formatter` | Taken | Chinese tool, 2019, 11 remark deps, last pub Nov 2025 |
-| `agents-markdown-formatter` | Available | Descriptive, honest about audience |
-| `@codesigils/markdown-formatter` | Available | Clean, scoped, covers all dialects |
-| `@codesigils/agents-markdown-formatter` | Available | Scoped + specific |
-| `gfm-md-formatter` | Available | Short but redundant (GFM = GitHub Flavored Markdown) |
-| `gfm-formatter` | Available | Cleaner than gfm-md-formatter |
-| `markdown-formatter-cli` | Available | Generic, longer |
-
-## Dual-use repo design (skill + npm package)
-
-When a repo ships both an agent skill AND an npm package from the same code,
-the design tension is between:
-
-- The **development environment** (tests, CI, fixtures, scripts, staged-install-verify)
-- The **shipping surface** (7 runtime files under `skills/markdown-formatter/`)
-- The **npm tarball** (only what `files` allows + package.json, README, LICENSE)
-
-### Approach comparison
-
-| Approach | Pros | Cons |
-|----------|------|------|
-| **Same repo, `files` allowlist** (`"files": ["skills/markdown-formatter/"]`) | Single source of truth, one CI, one issue tracker, no version sync | `bin` path is nested (`skills/markdown-formatter/src/index.js`); needs a shim; dev-only files visible on npm webpage but not in tarball |
-| **Separate npm wrapper repo** | Clean npm root, publishable from day one | Two CI pipelines, two tag histories, version sync headache, duplicate READMEs |
-| **Restructure: flatten skill to root** (move `skills/markdown-formatter/src/` up to `src/` in root) | Clean npm root, single repo | Breaking change for the skill install path; need backward-compat symlink |
-
-### Recommended: same repo with shim
-
-Changes needed in `package.json`:
-
-```json
-{
-  "private": false,
-  "files": [
-    "skills/markdown-formatter/SKILL.md",
-    "skills/markdown-formatter/src/",
-    "skills/markdown-formatter/scripts/"
-  ],
-  "bin": {
-    "markdown-formatter": "bin/mdfmt"
-  }
-}
-```
-
-Create `bin/mdfmt` (thin shim — no code duplication):
-
-```js
-#!/usr/bin/env node
-require('../skills/markdown-formatter/src/index.js');
-```
-
-The runtime payload verification (`staged-install-verify.sh`) continues to
-validate the exact files under `skills/markdown-formatter/`. The npm `files`
-field serves as the secondary allowlist — anything not in `files` stays local.
-
-### What doesn't change
-
-- **Skill install path** — still `skills/markdown-formatter/`
-- **CI** — still runs from repo root, tests same files
-- **Release process** — `npm run release` still runs `bash scripts/release.sh`
-- **Anti-drift checks** — `check-consistency.js` still validates cross-doc version alignment
-
-### Package name alignment
-
-If the npm package name differs from the repo name, add a comment in
-`package.json`:
-
-```json
-{
-  "name": "gfm-formatter",
-  "repository": "github:CodeSigils/agents-markdown-formatter"
-}
-```
-
-The repo URL is the canonical source. The npm name is the distribution label.
-They don't need to match. Document the relationship in the repo README so
-users can find the npm package from the GitHub repo and vice versa.
+Keep external registry and download monitoring in scheduled or manual jobs.
+Keep package tests and artifact inventory in pull requests. Publish only from an
+explicit tag or release workflow with least-privilege credentials.

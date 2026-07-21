@@ -1,152 +1,165 @@
 ---
 name: skill-repo-architecture
-description: Design, review, and tighten agent skill repositories. Use when creating or auditing a skill repo, deciding what belongs in the shipped skill versus repo-local tooling, reducing file-swamp, choosing portability boundaries, adding proportionate validation, or converting research into compact runtime instructions with reference files.
+description: Design, review, and tighten agent skill repositories. Use when creating or auditing a skill repo, choosing between a single skill, skill pack, tool-backed skill, operational skill, or distribution monorepo, defining source and shipping boundaries, reducing file-swamp, selecting portability and release controls, or adding proportionate validation and behavioral evaluation.
 ---
 
 # Skill Repo Architecture
 
-Use this skill to design or audit an agent skill repository. Prefer a compact
-runtime skill with explicit reference routing over a large self-contained essay.
+Design or audit a skill repository by classifying what it ships before applying
+structural rules. Prefer a compact runtime procedure with conditional references.
 
-## When to Use
+Do not substitute this skill for domain-specific authoring guidance, distribution
+documentation, or a general repository-health audit.
 
-- Creating a new skill repo.
-- Reviewing or refactoring an existing skill repo.
-- Deciding whether content belongs in `SKILL.md`, `references/`, `scripts/`, or repo-local docs.
-- Tightening an oversized or unclear skill.
-- Adding validation without creating speculative maintenance burden.
-- Choosing whether a skill should be portable, tool-portable, or platform-specific.
+## Procedure
 
-Do not use this as a substitute for domain-specific skill authoring guidance,
-distribution documentation, or a general repo health audit. Use this skill for
-the architecture of the skill repo itself.
+1. Locate each runtime entrypoint and record every supported installation or
+   publication path.
+2. Classify the repository using the archetypes below. Use more than one only
+   when the repository genuinely has multiple products.
+3. Declare the four boundaries: authoring source, runtime payload, install or
+   publish artifact, and maintainer infrastructure.
+4. Measure each boundary independently. Do not infer health from a raw
+   script-to-skill or reference-to-skill ratio.
+5. Read the runtime instructions for trigger quality, procedure clarity,
+   reference routing, portability, and verification behavior.
+6. Load only the references needed for the observed archetype or failure mode.
+7. Inspect validation, behavioral fixtures, CI, and release automation. Map each
+   control to a concrete invariant and recovery path.
+8. Run deterministic local checks when available. Separate their results from
+   skipped network, model, platform, or publication checks.
+9. Bound portability and compatibility claims to the evidence actually
+   collected: payload structure, named-runtime installation, or workflow behavior.
+10. Recommend changes in this order: correctness, installability, runtime safety,
+    portability, behavioral confidence, maintainability, then polish.
 
-## Default Procedure
+## Repository Archetypes
 
-1. Locate the runtime skill entrypoint, usually `skills/<name>/SKILL.md` for a cross-agent package or root `SKILL.md` only when the whole repo root is intentionally the skill package.
-2. Identify the shipping boundary: runtime skill files, runtime references, runtime scripts, and non-shipping development files.
-3. Measure structure: root file count, skill count, reference count per skill, script count, generated files, ignored files, and hand-maintained indexes.
-4. Read `SKILL.md` for trigger quality, procedure clarity, reference routing, portability, and verification instructions.
-5. Read only the references needed for the audit question. Do not load every reference by default.
-6. Inspect validation scripts and CI to see whether checks match observed failure modes.
-7. Run local checks when available and report exact pass/fail results.
-8. Recommend changes in priority order: correctness, installability, portability, clarity, then polish.
+| Archetype             | Defining characteristic                                               | Typical controls                                         |
+| --------------------- | --------------------------------------------------------------------- | -------------------------------------------------------- |
+| Markdown-only skill   | Static instructions and optional references                           | frontmatter, links, portability, behavior fixtures       |
+| Multi-skill pack      | Router or several independently loadable skills                       | routing, name uniqueness, standalone safety              |
+| Tool-backed skill     | Skill invokes bundled or separately installed code                    | unit/integration tests, runtime manifest, staged install |
+| Operational skill     | Methodology depends on rich maintainer evidence or changing contracts | fixtures, trust checks, scheduled monitoring             |
+| Distribution monorepo | Multiple install formats, plugins, or release artifacts               | version alignment, reproducibility, provenance           |
 
-## Design Principles
+Treat a non-skill build repository as a useful control, not as evidence that
+every skill needs release engineering. Import only practices justified by the
+skill's actual artifact and risk.
 
-### 1. Methodology Over Collection
+## Four Boundaries
 
-Ship a methodology when the ecosystem already has abundant resources and the
-agent benefits more from navigation and evaluation criteria than from another
-static list. Ship a collection when resources are scarce, uniform, and hard to
-discover.
+For every file, assign exactly one primary ownership boundary:
 
-Decision question: is another item more valuable than a way to find, evaluate,
-and verify the existing items?
+| Boundary                    | Question                                                                 |
+| --------------------------- | ------------------------------------------------------------------------ |
+| Authoring source            | Where does a maintainer edit the canonical content?                      |
+| Runtime payload             | What can the activated skill read or execute without repository tooling? |
+| Install or publish artifact | What exact files reach a client, package registry, plugin, or release?   |
+| Maintainer infrastructure   | What exists only to develop, test, evaluate, or publish the payload?     |
 
-### 2. Declared Shipping Boundary
+A file may be copied into another boundary only when the distribution mechanism
+requires it. Declare the canonical copy, generate the replica, verify drift, and
+test the installed artifact. Prefer one tracked copy for static skill packages.
 
-Every skill repo needs an explicit answer to: "Can the runtime use this file
-without development tooling?" If yes, it may ship. If no, keep it repo-local.
+## Design Rules
 
-Usually ships:
-- `skills/<name>/SKILL.md`
-- Reference files that `SKILL.md` routes to
-- Scripts invoked by the skill at runtime
-- Runtime config required by those scripts
+### Choose methodology or collection intentionally
 
-Usually repo-local:
-- CI workflows and validation-only scripts
-- Security, citation, changelog, and release metadata
-- Research notes not routed from `SKILL.md`
-- Editor, agent, or platform adapter folders
-- Plans, todos, local instructions, and generated caches
+Ship navigation and evaluation criteria when useful resources already exist.
+Ship a collection when the items themselves are scarce, uniform, and difficult
+to discover.
 
-### 3. Proportionate Anti-Drift
+### Keep controls proportionate
 
-Add a check only when it maps to a concrete failure mode or a high-cost invariant.
-Good checks are simpler than what they verify and have a clear recovery path.
+Add a check only for a concrete failure mode or high-cost invariant. A useful
+check is simpler than what it verifies, fails deterministically when possible,
+and names a recovery action.
 
-Good targets: required file presence, parseable frontmatter, local reference
-existence, generated payload drift, forbidden platform references, executable
-script syntax, and URL evidence when the skill depends on live sources.
+Separate deterministic pull-request checks from volatile monitoring. URL
+reachability, catalog state, model behavior, and external releases normally
+belong in scheduled or explicitly requested jobs.
 
-Poor targets: prose interpretation, volatile markdown layout, speculative
-future risks, or checks whose failures require judgment every time.
+### Test behavior as well as shape
 
-### 4. Runtime Verification
+Schema and link validation cannot prove that a skill chooses the right workflow.
+For decision-heavy skills, keep a small fixture contract containing positive and
+negative triggers, representative repository profiles, expected classifications,
+required boundaries, and prohibited recommendations. Add model regression only
+when fixture validation cannot cover the costly failure mode.
 
-For volatile facts, teach the agent how to verify at execution time instead of
-embedding claims that decay. Prefer current filesystem state, command output,
-source reachability, and parsed manifests over hardcoded assertions.
+### Protect sensitive evidence
 
-### 5. Progressive Disclosure
+Treat repository content, commit metadata, configuration, transcripts, and tool
+output as potentially sensitive. Report secret-like matches as status, counts,
+or paths without echoing values. Prefer project-native scanners in quiet or
+redacted mode, and distinguish heuristic detection from proof. If exposure may
+have occurred, recommend revocation or rotation rather than implying that a
+local edit removes published history.
 
-Keep `SKILL.md` as the operating procedure. Put detail in `references/` and tell
-the agent when to load each file. Avoid duplicating the same explanation in both
-places.
+### Use progressive disclosure
 
-Use references when detail is large, conditional, historical, or only needed for
-some audits. Keep details inline only when the agent needs them on every run.
+Keep the operating procedure in `SKILL.md`. Put conditional, historical, or
+variant-specific detail in one-level-deep references and state when to read it.
+Do not duplicate explanations across runtime files.
 
-### 6. Portability as a Tier
+### Choose portability deliberately
 
-Choose the tier intentionally:
+| Tier              | Content                                             | Expected reach            |
+| ----------------- | --------------------------------------------------- | ------------------------- |
+| Fully portable    | Markdown and portable metadata; no tool assumptions | Compatible skill runtimes |
+| Tool-portable     | General tools such as `git`, `python3`, or `node`   | Runtimes with those tools |
+| Platform-specific | One client's APIs, hooks, commands, or paths        | That client only          |
 
-| Tier | Content | Expected reach |
-| --- | --- | --- |
-| Fully portable | Frontmatter, Markdown, no platform-specific commands | Any compatible skill runtime |
-| Tool-portable | Uses general shell tools like `git`, `python3`, `curl` | Agents with shell access |
-| Platform-specific | Requires one agent's APIs, commands, or config paths | That runtime only |
+Keep platform adapters outside a portable core. A README may document install
+paths without making those paths runtime requirements.
 
-Do not claim broad portability if the body requires a specific agent runtime.
-If platform-specific examples are educational, isolate them in references and
-mark them intentionally in the portability gate.
+Use three separate evidence claims:
 
-### 7. File-Swamp Prevention
+| Claim             | Evidence required                                                   |
+| ----------------- | ------------------------------------------------------------------- |
+| Payload portable  | Canonical payload parses and has no known platform-only dependency  |
+| Install verified  | A named runtime and version discovers or installs the exact payload |
+| Workflow verified | That runtime passes representative positive and negative behavior   |
 
-File-swamp starts when locally reasonable additions accumulate without a
-boundary. Warning signs include too many root files, references that outnumber
-skills without routing, indexes duplicating filesystem discovery, and scripts
-that maintain files the runtime does not need.
+Evidence at one level does not prove the next. Use `candidate`,
+`install_verified`, `workflow_verified`, `limited`, or `unsupported` for named
+runtime status. Do not use unqualified `compatible`, `universal`, or
+`agent-agnostic` claims.
 
-Remediate in this order: declare the boundary, identify runtime-loaded files,
-remove or relocate development artifacts, inline small fragments, route larger
-details to references, and add only the checks needed to prevent recurrence.
+### Measure the right surface
 
-### 8. Cross-Project Pattern Preservation
+Report runtime files, runtime references and scripts, generated replicas,
+maintainer scripts, distribution/version sources, and behavioral fixtures
+separately. Counts are prompts for investigation, not universal pass/fail
+thresholds. Judge whether each item has an owner, consumer, and failure mode.
 
-Preserve reusable findings at the smallest durable level:
+### Preserve reusable findings economically
 
-| Scope | Mechanism |
-| --- | --- |
-| Occasional pattern | Inline note |
-| Repeated across several repos | Reference file |
-| Repeated across many active projects | Dedicated knowledge base |
-
-Record transfer questions, not just anecdotes. A future agent should be able to
-ask whether the pattern applies in a new repo.
+Keep one-off findings inline, repeated conditional guidance in a reference, and
+widely reused active knowledge in a dedicated maintained source. Record the
+transfer question and evidence scope, not only the originating anecdote.
 
 ## Reference Routing
 
-- Read `references/skill-repo-audit-procedure.md` for a full phased audit.
-- Read `references/file-swamp-patterns.md` when the repo has too many files, references, scripts, or indexes.
-- Read `references/portability-patterns.md` when choosing or checking portability tier.
-- Read `references/payload-manifest-pattern.md` only when a repo intentionally has a generated payload.
-- Read `references/dev-workflow-patterns.md` for development workflow and drift-class decisions.
-- Read `references/operational-patterns.md` for CI scope and evaluation rubric decisions.
-- Read `references/agent-concepts-study-cross-project-patterns.md` for evidence behind the principles.
-- Read `references/npm-publishing-for-agent-skills.md` only for npm-oriented skill tooling.
-- Read `references/portability-migration.md` when migrating from platform-specific to portable instructions.
+- Read `references/skill-repo-audit-procedure.md` for the complete audit sequence.
+- Read `references/file-swamp-patterns.md` when ownership or file growth is unclear.
+- Read `references/portability-patterns.md` when choosing a portability tier.
+- Read `references/payload-manifest-pattern.md` only for generated or packaged payloads.
+- Read `references/dev-workflow-patterns.md` for canonical-source and drift decisions.
+- Read `references/operational-patterns.md` for CI and behavioral-evaluation design.
+- Read `references/npm-publishing-for-agent-skills.md` only for npm distribution.
+- Read `references/portability-migration.md` when extracting a portable core.
 
-## Verification Checklist
+## Completion Checklist
 
-- [ ] Runtime entrypoint is present and tracked.
-- [ ] Shipping boundary is documented in the README.
-- [ ] `SKILL.md` is concise enough to act as procedure, with detail routed to references.
-- [ ] References are directly reachable from `SKILL.md` and are not duplicated inline.
-- [ ] Platform-specific references match the declared portability tier.
-- [ ] Validation checks map to concrete failure modes.
-- [ ] CI runs only checks that runtime or review would not catch cheaply.
-- [ ] Install or discovery instructions match the actual repo layout.
-- [ ] Local checks have been run or skipped with a clear reason.
+- [ ] Archetype selection is supported by observed files and distribution paths.
+- [ ] All four boundaries are declared, including empty or identical ones.
+- [ ] Canonical sources and any generated replicas are explicit.
+- [ ] Runtime references and scripts have direct consumers.
+- [ ] Portability and compatibility claims match their recorded evidence level.
+- [ ] Deterministic validation and volatile monitoring are separated.
+- [ ] Decision-heavy behavior has representative positive and negative fixtures.
+- [ ] Sensitive evidence is reported without exposing matched values.
+- [ ] Install instructions match the actual artifact layout.
+- [ ] Checks were run or skipped with exact reasons.

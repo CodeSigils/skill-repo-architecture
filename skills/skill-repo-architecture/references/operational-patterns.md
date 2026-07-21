@@ -1,90 +1,82 @@
-# Operational Patterns — Session Detail
+# Operational, CI, and Evaluation Patterns
 
-> Session-derived detail from 2026-07-08 CI triage analysis.
-> See the main skill SKILL.md §10 for the actionable principles.
+Use this reference when deciding which controls belong in pull requests,
+scheduled monitoring, model regression, or release automation.
 
-## CI Triage: Full Rationale Per Check
+## Control admission record
 
-From skill-discovery's CI (3 checks):
+For each proposed control, record:
 
-| Check | What it catches | Why CI is right | Why NOT runtime |
-|-------|----------------|-----------------|-----------------|
-| Portability gate | Hermes-specific refs in skills/ | Non-Hermes agents silently fail — no runtime validates cross-agent portability | A Hermes agent never sees the problem; a Codex agent silently misreads |
-| Docs frontmatter | Missing fields, expired dates, unlabelled fences in docs/ | Docs are repo-only artifacts that no runtime touches | No runtime ever reads repo-local docs |
-| URL drift | Live URL status differs from expected state | Drift is invisible without periodic checking | Methodology self-verifies at execution time, but the evidence base doesn't self-correct |
+| Field       | Question                                            |
+| ----------- | --------------------------------------------------- |
+| Invariant   | What exact property must remain true?               |
+| Evidence    | Which observed failure or costly risk justifies it? |
+| Owner       | Which boundary owns the checked files?              |
+| Determinism | Does identical local input produce the same result? |
+| Recovery    | What should a maintainer do after failure?          |
+| Lane        | PR, scheduled, manual, or release-only?             |
 
-## Path-Restricted CI Triggers
+Reject a control whose invariant or recovery cannot be stated clearly.
 
-From skill-discovery's CI workflow:
+## Execution lanes
 
-```yaml
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'README.md'
-      - 'SECURITY.md'
-      - '.agents/skills/skill-discovery'
-      - 'skills/**/*.md'
-      - 'docs/**'
-      - '.github/workflows/ci.yml'
-      - '.github/scripts/**'
-```
+### Deterministic pull-request lane
 
-This does two things: (1) documentation-only changes don't waste CI minutes, (2) any newly added file either affects the shipping surface (goes in the trigger list) or is dev tooling (doesn't). A file not in this list is implicitly declared non-shipping.
+Use for frontmatter parsing, name/path agreement, local-link resolution,
+portability scans, unit and integration tests, fixture-schema validation,
+generated-payload drift, and formatting or linting owned by the repository.
 
-## Two-Question Test Decisions
+Keep this lane fast and network-independent. Add path filters only when they do
+not create unvalidated gaps. Use concurrency cancellation for superseded runs.
 
-From skill-discovery's planning:
+### Scheduled or manual monitoring lane
 
-| Decision | Evidence | Verdict |
-|----------|----------|---------|
-| Frontmatter validation CI | Runtimes validate shipped SKILL.md on load, but repo-only docs benefit | Keep scoped — validate docs/frontmatter |
-| Ceiling checks (40 files, 24 skills) | At 4 skills, ls skills/ is half a screen | Skip — manual review catches violations |
-| index.json generation | No runtime reads it for discovery | Skip entirely |
-| Hermes-reference drift detection | Non-Hermes agents silently fail — no runtime validates this | Keep in CI |
+Use for URL reachability, marketplace/catalog contracts, dependency freshness,
+external release state, and model regression. A network outage or provider
+change should not make an unrelated documentation pull request nondeterministic.
 
-## Four-Tier Evaluation Rubric Detail
+### Release lane
 
-```text
-Direct hit:  Name, description, body match task. Source trusted. Install path clear.
-             -> Recommend first.
-Good partial: Covers domain but misses a feature or workflow.
-             -> Recommend with the gap stated.
-Weak partial: Shares keywords but needs substantial adaptation.
-             -> Mention only if no better option exists.
-Off-domain:   Does not solve the task.
-             -> Exclude.
-```
+Use for staged installation, artifact inventory, version alignment, checksums,
+provenance, publication credentials, and post-package smoke tests. Apply this
+lane only when the repository publishes an artifact beyond a directly copied
+static skill directory.
 
-Nine independent checks applied per candidate: task fit, trigger quality, trust, freshness, compatibility, installability, resource quality, safety, coverage. A candidate must pass all to be a "direct hit."
+## Behavioral fixture contract
 
-## Fallback Chain Architecture
+Decision-heavy skills need explicit examples in addition to structural checks.
+A compact contract should include:
 
-From skill-discovery's methodology (7-stage progressive widening):
+- positive and negative trigger prompts;
+- representative observed profiles;
+- expected archetype or route;
+- required boundary assignments;
+- required recommendations;
+- prohibited recommendations or unsafe actions.
 
-1. Installed/local skills (tools: filesystem)
-2. Local or hosted catalog index (tools: filesystem, json)
-3. Featured or curated sources (tools: filesystem or HTTP)
-4. Marketplace APIs (tools: HTTP, json parser)
-5. Browser-rendered marketplace (tools: browser, conditional)
-6. GitHub and web research (tools: HTTP, GitHub API)
-7. Build or draft a new skill (tools: any)
+Validate the contract's schema in the deterministic lane. The contract does not
+prove model behavior, but it makes intended behavior reviewable and supports a
+future model runner without embedding provider-specific execution in the skill.
 
-Each stage documents tool requirements. If the agent lacks a tool, the stage is skipped and reported. Exit condition per stage: "did we find a direct-hit candidate?" not "did we find any candidate?"
+Run model regression only after material trigger or workflow changes, or on a
+schedule. Grade observable outputs against the fixture contract. Do not require
+model availability for ordinary repository changes.
 
-## Evidence-Base-as-Architecture
+## Policy tests
 
-From skill-discovery: research evidence lives in docs/ and is explicitly NOT shipped:
+Prefer a test of the relationship that can drift over a test that merely checks
+file presence. Examples:
 
-```text
-docs/                      # repo-only — provenance and audit trail
-  hub-marketplace-research.md
-  evidence-urls.json
+- every package-manifest runtime file appears in the installed artifact;
+- every router destination names an existing independently valid skill;
+- every workflow-created label is accepted by the label policy;
+- every README install command targets the declared payload directory;
+- every external contract is monitored in the volatile lane, not the PR lane.
 
-skills/                    # shipping surface
-  skill-discovery/
-    SKILL.md               # self-contained, agent-agnostic
-```
+## Dependency and action integrity
 
-The research doc records methodology, limitations, verification timestamps, and a drift register. The shipped SKILL.md references nothing in docs/. This prevents two failure modes: (1) evidence rot — if docs were shipped, every URL status change would produce false positives for users; (2) blind shipping — if the skill referenced docs/, it would break on reorganization.
+Pin validation dependencies and CI actions according to the repository's threat
+and reproducibility requirements. Published or security-sensitive projects
+should prefer immutable action revisions and lockfiles. Small static skills can
+use a short exact development-requirements file rather than adding a package
+manifest solely for CI.

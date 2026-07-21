@@ -8,8 +8,10 @@ establish a private channel.
 
 ## Scope
 
-This repository ships a methodology (instructions for agents). It does not
-contain executable code that runs on users' machines beyond standard
-Python/Node.js scripts in CI. Vulnerabilities in the methodology itself
-are unlikely, but insecure patterns recommended in the shipped SKILL.md
-would be in scope.
+This repository ships a Markdown methodology and conditional references. The
+runtime payload contains no executable code. Python scripts at the repository
+root are maintainer-only validation and external-monitoring tools.
+
+Unsafe actions or trust assumptions recommended by the runtime methodology,
+payload-boundary mistakes that unintentionally ship maintainer files, and
+vulnerabilities in maintainer tooling are in scope.

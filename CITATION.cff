@@ -7,4 +7,4 @@ version: 1.0.0
 date-released: 2026-07-11
 license: MIT
 type: software
-description: "Design principles for structuring, shipping, and maintaining agent skill repositories at the repo level — methodology over collection, declared shipping boundaries, proportionate anti-drift, heuristic discovery, self-verifying instructions, cross-project pattern preservation, file-swamp diagnosis, portability gradations, information density analysis, and evaluation rubric/CI triage."
+description: "An archetype-aware methodology for structuring, shipping, validating, and maintaining agent skill repositories through explicit source, runtime, artifact, and maintainer boundaries."

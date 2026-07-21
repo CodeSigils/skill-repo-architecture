@@ -1,79 +1,81 @@
-# Portability Patterns — Session Detail  # portability: allow-platform-ref
+# Portability and Compatibility Evidence
 
-> Session-derived detail from 2026-07-08 portability analysis.
-> See the main skill SKILL.md §8 for the actionable principles.
+Use this reference when choosing a portability tier, documenting installation,
+or making compatibility claims for a named agent runtime.
 
-## Frontmatter Portability: Field-by-Field
+## Portability tier
 
-The agentskills.io specification defines the portable baseline. Platform extensions are additive:
+Classify what the payload requires before discussing client support:
 
-| Field | Portable? | Notes |
-|-------|-----------|-------|
-| `name` | Yes | Required by all platforms |
-| `description` | Yes | Required by all platforms |
-| `metadata.*` | Yes | Ignored by non-Hermes clients; harmless |
-| `compatibility` | Yes | Ignored by clients that don't recognize the value |
-| `context: fork` | Claude Code only | Silently ignored by Hermes; may affect behavior on Codex |
-| `allowed-tools` | Claude Code only | Same risk |
-| `globs` / `alwaysApply` | Cursor only | Cursor .mdc format, not SKILL.md |
+| Tier              | Runtime content                                      | Structural claim                                  |
+| ----------------- | ---------------------------------------------------- | ------------------------------------------------- |
+| Fully portable    | Markdown and baseline metadata; no tool assumptions  | Plausible for runtimes supporting that skill form |
+| Tool-portable     | General executables such as `git`, `python3`, `node` | Requires those tools and usable execution access  |
+| Platform-specific | One client's APIs, hooks, commands, or paths         | Requires the named platform                       |
 
-Safe rule: stick to `name`, `description`, and `metadata.*` for portable skills. Add platform-specific fields only when verified that they're silently ignored by other clients.
+Portable text is not the same as verified client behavior. Shell availability,
+sandboxing, authentication, discovery, and instruction adherence vary by
+runtime.
 
-## Body-Content Portability: Forbidden Patterns
+## Frontmatter policy
 
-From ci-check.py in skill-discovery, generalized:
+Use only `name` and `description` for the broadest baseline unless an active
+distribution or runtime target requires another field. Validate optional fields
+against that target's current parser; do not assume unknown fields are ignored.
 
-```python
-FORBIDDEN_PATTERNS = [
-    (r"\bskill_(?:view|manage)\b", "Hermes tool name"),
-    (r"\bhermes\s+(?:skills?|config)\b", "Hermes CLI command"),
-    (r"HERMES_CONFIG_DIR", "Hermes config path"),
-    (r"\bClaude\(\)", "Claude Code tool"),
-    (r"\bcodex\s+run\b", "Codex CLI command"),
-    (r"\bgemini\s+skills\b", "Gemini CLI command"),
-]
-```
+Keep platform-only metadata in a thin adapter when possible. An adapter may
+point at the canonical payload or add required packaging metadata, but it should
+not duplicate runtime instructions.
 
-A truly portable skill uses only generic shell commands (`git`, `python3`, `node`, `curl`, `find`, `grep -E`) and avoids any agent-specific tool, config path, or CLI command.
+## Three evidence levels
 
-## Platform Adapter Anti-Pattern Detail
+| Claim             | Minimum evidence                                                                                         |
+| ----------------- | -------------------------------------------------------------------------------------------------------- |
+| Payload portable  | Canonical files parse under the claimed format and contain no known platform-only runtime dependency     |
+| Install verified  | A named runtime and version locates or installs the exact canonical payload through a recorded procedure |
+| Workflow verified | That runtime completes representative positive and negative tasks against the behavioral contract        |
 
-| Approach | Drift surface | Maintenance cost | User experience |
-|----------|---------------|------------------|-----------------|
-| Ship all adapters in repo | High — each platform path change breaks one | High — update N files per release | Best — copy-paste one dir |
-| Ship zero adapters, document in README | None | Low — one doc update per platform change | Good — user reads README |
-| Ship .agents/skills/ symlink only | None | Zero | Good — auto-discovery for .agents/-aware clients |
+A schema check, directory convention, marketplace listing, or successful copy
+does not establish workflow behavior.
 
-## Portability Decision Tree Detail
+## Compatibility states
 
-```text
-Does the skill need agent-specific tooling?
-  No -> Fully portable
-    Frontmatter: name + description only
-    Body: prose rules, no tool commands
-    Ships: skills/<name>/SKILL.md
-    Coverage: 42+ agentskills.io clients
+Use the narrowest state supported by current evidence:
 
-  Yes, but generic CLI suffice -> Tools-portable
-    Frontmatter: name + description + metadata.*
-    Body: git, python3, curl commands only
-    Ships: skills/<name>/SKILL.md + optional scripts/
-    Coverage: any agent with shell access
+| State               | Meaning                                                        |
+| ------------------- | -------------------------------------------------------------- |
+| `candidate`         | Payload appears structurally suitable; runtime is untested     |
+| `install_verified`  | Discovery or installation succeeded; behavior remains untested |
+| `workflow_verified` | Representative behavior passed for the recorded runtime        |
+| `limited`           | Testing found a documented constraint                          |
+| `unsupported`       | A known incompatibility prevents the workflow                  |
 
-  Yes, requires agent-specific API -> Platform-specific
-    Frontmatter: name + description + compatibility: <agent>
-    Body: platform CLI, tool names, config paths
-    Ships: skills/<name>/SKILL.md
-    Coverage: one agent runtime
-    Note: document which agent is required
-```
+Record the runtime name and version, date, installation path, explicit and
+implicit selection results, positive and negative scenarios, evidence or grading
+criteria, and tool or sandbox limitations. A material payload, prompt, grader,
+or schema change starts a new evidence baseline.
 
-## Portability Testing (Three-Layer)
+## Runtime-content scan
 
-| Layer | What it checks | How to test | Catches |
-|-------|---------------|-------------|---------|
-| Frontmatter | Parses correctly on all clients | Validate against agentskills.io spec | Client-side parse failures |
-| Body references | No agent-specific tool names | Portability gate scan | Silent misreads on non-target agents |
-| Shell commands | Cross-platform compatibility | CI matrix on Linux + macOS | grep -P, which, BSD/GNU incompatibility |
+Search the canonical payload for platform commands, APIs, paths, hooks, and
+metadata. Treat a scan as detection of known markers, not proof that no coupling
+exists. Educational platform examples should be conditional and isolated from
+the core procedure.
 
-For tools-portable skills, the most common failure is non-portable shell commands. A CI matrix running key commands on both Ubuntu and macOS catches `which` vs `command -v`, `grep -P` vs `grep -E`, and `sed -i` portability issues.
+For tool-portable skills, test the actual runtime commands on each supported
+operating system. Running a Markdown parser or maintainer validator on several
+operating systems does not establish cross-platform workflow behavior.
+
+## Adapter decision
+
+Create an adapter only after selecting a platform as an active target and
+identifying a concrete requirement. Prefer a path, import, symlink, or manifest
+that points to canonical content. Avoid copied prose and avoid claiming that an
+adapter proves runtime selection or instruction adherence.
+
+## Automation boundary
+
+Keep deterministic payload checks in normal CI. Keep model-backed runtime
+certification non-blocking and scoped to a named compatibility report. Reuse the
+fixture vocabulary first; build a generic cross-runtime harness only after at
+least two concrete uses share the same lifecycle and grading contract.

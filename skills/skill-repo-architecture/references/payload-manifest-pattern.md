@@ -1,116 +1,64 @@
-# Payload Manifest Pattern  # portability: allow-platform-ref
+# Payload Manifest Pattern
 
-Implementation reference for maintaining a Hermes skill payload with a JSON
-manifest and bash sync script, mechanically enforcing the declared shipping
-boundary in CI.
+Use a payload manifest only when an install, package, plugin, or release process
+must assemble an artifact that differs from the canonical source tree. A static
+skill already stored in its installable directory does not need a second tracked
+copy or a sync script.
 
-## Manifest format
+## Admission gate
 
-`scripts/payload-manifest.json`:
+Before adding a manifest, answer:
+
+1. Which distribution consumer cannot use the canonical tree directly?
+2. Is the output generated during packaging, or must it be tracked?
+3. What proves the installed artifact contains exactly the runtime payload?
+4. Which file owns the artifact version?
+
+If the only motivation is convenient browsing or copying, keep the payload
+canonical and omit the manifest.
+
+## Manifest contract
+
+The format may be ecosystem-native (`package.json` files, wheel metadata, plugin
+manifest) or a small project manifest. It should declare exact runtime files by
+category, for example:
 
 ```json
 {
-  "files": ["SKILL.md", ".repo-health.json"],
-  "scripts": ["check-commit-body.py", "check-commit-trailers.py", "check-portability.py"],
-  "references": "*"
+  "entrypoints": ["SKILL.md"],
+  "references": ["references/policy.md"],
+  "scripts": ["scripts/check.py"]
 }
 ```
 
-| Key | Value type | Semantics |
-|-----|-----------|-----------|
-| `files` | Array of strings | Root-level files declared by relative path from repo root |
-| `scripts` | Array of strings | Files under `scripts/` declared by basename only |
-| `references` | `"*"` or array of strings | `"*"` mirrors entire `references/` directory; array selects specific files |
+Avoid a wildcard when the artifact is security-sensitive or separately
+published. Exact inventories make additions reviewable.
 
-## Sync script contract
+## Required checks
 
-`scripts/sync-payload.sh` reads the manifest and copies source files into
-`skills/<skill-name>/` at the same relative path (e.g., `scripts/foo.py` in
-root goes to `skills/<skill>/scripts/foo.py` in the payload).
+- Every declared source exists.
+- Every installed file is declared.
+- No declared file is omitted from the artifact.
+- Generated files match their canonical sources.
+- Executable permissions are preserved when relevant.
+- The artifact works from a staging directory without maintainer-only files.
+- Version fields agree across manifests, tags, and release metadata when used.
 
-### Operation modes
+Prefer generating artifacts into an ignored staging directory during tests.
+Track generated replicas only when the downstream distribution mechanism
+requires them in version control.
 
-| Mode | Command | Behavior |
-|------|---------|----------|
-| Normal | `bash scripts/sync-payload.sh` | Rebuild payload, report drift but exit 0 |
-| CI | `bash scripts/sync-payload.sh --ci` | Rebuild payload, exit 1 on any drift |
-| Self-check | (included in verify.sh) | Run manifest check + staged-install smoke test |
+## Tool-backed skills
 
-### What drift means
+When a skill wraps a separately installable CLI, the package manifest should own
+the executable inventory and the skill should describe how to locate it. Do not
+copy the tool implementation into the skill directory merely to make the skill
+self-contained. If an offline bundled mode is a real requirement, treat it as a
+separate artifact and test it explicitly.
 
-- A file in the manifest is missing from source (MISSING)
-- A file exists in the payload directory but is not in the manifest (ORPHANED)
-- A file in the manifest has execute permission in source but was copied without it (or vice versa)
+## Release integrity
 
-### Exit paths
-
-Every `exit` must emit enough context to fix the problem:
-- ORPHANED: print the relative path and the command to remove it
-- MISSING: print the relative path and the manifest entry
-
-## Reference mirroring
-
-When `"references": "*"` is used, the entire `references/` directory is
-mirrored to the payload. The sync script must:
-
-1. Delete ALL existing files under `payload/references/` before copying
-2. Copy `source/references/*.md` to `payload/references/`
-3. Leave the payload references/ directory empty if source references/ is empty
-   (clean empty dirs are removed by the cleanup pass)
-
-This means renaming or deleting a reference file in the source automatically
-removes it from the payload on the next sync. No manifest update needed for
-reference changes.
-
-## Orphan cleanup algorithm
-
-```
-find payload_dir -type f
-for each file:
-    compute relative path (strip payload_dir prefix)
-    check if relative path matches any manifest entry
-    if not matched:
-        if path starts with "references/" and manifest.references == "*": skip
-        else: orphan → delete
-```
-
-## CI enforcement
-
-```yaml
-- name: Payload sync check
-  run: bash scripts/sync-payload.sh --ci
-- name: Staged-install smoke test
-  run: |
-    python3 skills/<skill>/scripts/check-commit-trailers.py --self-test
-    python3 skills/<skill>/scripts/check-commit-body.py --self-test
-```
-
-The staged-install smoke test runs the payload's scripts from their installed
-location, proving they work without the root repo's development tooling.
-
-## Pitfalls
-
-### Reference removal cascade
-
-When `"references": "*"` is declared and a reference file is deleted from
-source, the sync script's deletion pass removes it from the payload
-automatically. This means branches that delete reference files will show a
-payload diff even though no manifest changed. This is correct behavior —
-the payload must match source — but be aware that the CI drift check will
-fire on branches that delete reference files, even if SKILL.md cross-refs
-were already updated.
-
-### Hub security scanner interaction
-
-The Hermes hub scanner (community source) marks **any** shipped script
-containing `~/.hermes/config.yaml` as CRITICAL persistence, even if it's
-only a comment. Scripts shipped in the payload must NOT mention config
-paths in their comments. Put configuration instructions in SKILL.md or
-README.md instead.
-
-### No post-install lifecycle for skills
-
-Hermes has no `post_install` event hook for skills. A script shipped in the
-payload cannot run automatically after install. The user must manually register
-hooks in config.yaml (e.g., for post-write Markdown checks). This is by design
-— auto-registering tool interceptors would be a security boundary violation.
+Published artifacts may justify staged-install tests, version-alignment checks,
+checksums, attestations, dependency audits, and immutable CI action revisions.
+Apply those controls to the release artifact, not automatically to every static
+skill repository.

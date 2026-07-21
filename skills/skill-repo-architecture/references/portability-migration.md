@@ -1,108 +1,55 @@
-# Portability Migration — From Platform-Specific to Cross-Platform  # portability: allow-platform-ref
+# Portability Migration
 
-> Session-derived technique from 2026-07-10.
-> Applied to: repo-health-and-sync-skill (B0 quality-skill fallback).
+Use this procedure to extract a portable runtime core from a skill that currently
+depends on one client's commands, paths, hooks, or APIs.
 
-## The Problem
+## 1. Inventory platform coupling
 
-A Hermes skill relies on `skill_view(name)` as the primary probe for
-tool availability. On Claude Code, Codex CLI, or Gemini CLI, this call
-is meaningless — the agent either fails silently or skips the check
-entirely. The skill declares `compatibility: hermes` honestly but the
-B1-B11 detection logic is agent-agnostic except for this one probe.
+Search the runtime payload for:
 
-## The Quad-Layer Cross-Platform Probe
+- client-specific tool or API names;
+- installation and configuration paths;
+- hook, plugin, or lifecycle assumptions;
+- platform-only frontmatter or metadata;
+- commands whose output or availability is client-specific.
 
-Replace any agent-specific first-probe (`skill_view`, `hermes skills`,
-`Claude()`) with this fallback chain:
+Classify each occurrence as runtime-essential, optional optimization,
+installation documentation, or historical example.
 
-```
-1. command -v <tool>      — PATH check (works on every system)
-2. Config/project file    — look for ecosystem-equivalent config
-   (.pylintrc, .flake8, .ruff.toml, .prettierrc, etc.)
-3. skill_view(name)        — Hermes-only optimization (skip on non-Hermes)
-4. Degraded mode           — skip the check, log the reason
-```
+## 2. Separate the portable core
 
-**Rules:**
-- If step 1 succeeds, use the tool directly. Do not chain further.
-- Only fall through to step 2 when the binary is absent.
-- Only try step 3 when steps 1 and 2 both fail AND the agent is Hermes.
-- Step 4 is always available — skipping a check is better than fabricating
-  a pass or a fail.
+Move task reasoning, filesystem inspection, general CLI use, and reporting into
+the portable `SKILL.md`. Prefer capability checks such as executable discovery,
+project manifests, or observed files over asking one agent runtime whether a
+tool exists.
 
-## The Coordination Principle
+Keep platform adapters outside the portable core. If an adapter is essential,
+declare the skill platform-specific rather than hiding the dependency behind a
+fallback.
 
-When making a skill cross-platform, the key insight is:
+## 3. Move install detail to the README
 
-> **Detection logic is agent-agnostic. Only the activation mechanism
-> and the tool-availability probe are platform-specific.**
+Document client-specific discovery and installation paths in clearly separated
+README sections. Installation paths may vary without changing the runtime
+methodology. Verify current client documentation before publishing commands.
 
-In repo-health-and-sync-skill, B1-B11 detection commands (`git log`,
-`find . -name '*.sh'`, `shellcheck`, etc.) are all agent-agnostic.
-Only the quality-skill fallback (how to decide whether a tool is
-available) and the C-phase sync targets (where to deploy) are Hermes-
-specific. This means ~90% of the skill was already portable — the fix
-was one section.
+Do not place every client's setup instructions in the activated skill unless the
+runtime procedure must configure those clients.
 
-## README Per-Platform Install Pattern
+## 4. Define degraded behavior
 
-After fixing the probe, update the README to show all platforms.
-Pattern (from skill-discovery and repo-health-and-sync-skill):
+For optional capabilities, state what the skill can still do when a tool, API,
+network connection, or credential is unavailable. Report skipped checks; do not
+fabricate passes or silently substitute a materially different workflow.
 
-```
-Clone this repo and make the skill discoverable:
+## 5. Validate the claim
 
-  git clone --filter=blob:none https://github.com/CodeSigils/<repo>
+- Parse the portable frontmatter using the claimed skill format.
+- Scan runtime files for unapproved platform markers.
+- Run the procedure using only the tools declared by its portability tier.
+- Test referenced files from an installed copy, not only the repository root.
+- Keep platform examples marked and conditional.
+- Add a negative fixture showing that ordinary tasks do not trigger a migration.
 
-Then choose your platform:
-
-<details>
-<summary><b>Hermes Agent</b></summary>
-  ... hermes-specific instructions ...
-</details>
-<details>
-<summary><b>Claude Code (Anthropic)</b></summary>
-  ... cp to .claude/skills/ ...
-</details>
-<details>
-<summary><b>Codex CLI (OpenAI)</b></summary>
-  ... cp to .codex/skills/ ...
-</details>
-<details>
-<summary><b>OpenCode CLI</b></summary>
-  ... cp or ln -s to .opencode/skills/ ...
-</details>
-<details>
-<summary><b>Gemini CLI (Google)</b></summary>
-  ... cp to .agents/skills/ ...
-</details>
-<details>
-<summary><b>Cursor</b></summary>
-  ... cp to .cursor/rules/ ...
-</details>
-<details>
-<summary><b>Generic agentskills.io client</b></summary>
-  ... cp to <your-skills-dir>/ ...
-</details>
-```
-
-## Verify Before Shipping
-
-After patching the probe:
-1. Check that every agent-specific reference (`skill_view`, `hermes`,
-   `~/.hermes/`) still present is intentional (documentation of
-   platform-specific features, not detection logic)
-2. The Forge-awareness line in SKILL.md should say "platform-specific
-   CLI registration" not "hermes skills install"
-3. README should declare the portability tier explicitly — "Works on
-   any agentskills.io-compatible agent" not "For Hermes agents"
-4. B12 portability gate should be optional for single-platform skills
-   but required once any cross-platform claim is made
-
-## See Also
-
-- `references/portability-patterns.md` — Three-tier gradation framework
-- `references/operational-patterns.md` — CI gate for portability
-- The quad-layer probe was validated in repo-health-and-sync-skill
-  commit 3fb6118
+Read `portability-patterns.md` for tier selection and `operational-patterns.md`
+for CI lane design.

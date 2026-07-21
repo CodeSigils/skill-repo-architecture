@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "skill_name": "skill-repo-architecture",
+  "trigger": {
+    "positive": [
+      "Design the repository layout for a portable agent skill",
+      "Audit this skill repo's shipping boundary and validation",
+      "Should this skill use a generated payload manifest?"
+    ],
+    "negative": [
+      "Review this ordinary Python pull request",
+      "Diagnose why the application server crashes",
+      "Find an existing skill for editing spreadsheets"
+    ]
+  },
+  "fixtures": [
+    {
+      "name": "markdown-only-discovery-skill",
+      "observed": {
+        "entrypoints": ["skills/skill-discovery/SKILL.md"],
+        "runtime_code": false,
+        "independent_skills": 1,
+        "external_contracts": true,
+        "published_artifacts": []
+      },
+      "expected": {
+        "archetype": "markdown-only-skill",
+        "boundaries": {
+          "authoring_source": "skills/skill-discovery/",
+          "runtime_payload": "skills/skill-discovery/",
+          "install_artifact": "copied skill directory",
+          "maintainer_infrastructure": "repository docs, validators, and CI"
+        },
+        "required_recommendations": ["separate external monitoring from pull-request validation"],
+        "prohibited_recommendations": ["add a generated payload mirror solely for convenience"]
+      }
+    },
+    {
+      "name": "routed-python-review-pack",
+      "observed": {
+        "entrypoints": ["skills/py-review/SKILL.md", "five focused SKILL.md files"],
+        "runtime_code": false,
+        "independent_skills": 6,
+        "external_contracts": false,
+        "published_artifacts": []
+      },
+      "expected": {
+        "archetype": "multi-skill-pack",
+        "boundaries": {
+          "authoring_source": "skills/",
+          "runtime_payload": "six independently loadable skill directories",
+          "install_artifact": "selected or complete skill pack",
+          "maintainer_infrastructure": "fixtures, extraction checks, docs, and CI"
+        },
+        "required_recommendations": ["test router destinations and standalone skill safety"],
+        "prohibited_recommendations": ["assume focused skills always load through the router"]
+      }
+    },
+    {
+      "name": "formatter-cli-with-skill-wrapper",
+      "observed": {
+        "entrypoints": ["skills/markdown-formatter/SKILL.md"],
+        "runtime_code": true,
+        "independent_skills": 1,
+        "external_contracts": false,
+        "published_artifacts": ["npm package", "skill payload"]
+      },
+      "expected": {
+        "archetype": "tool-backed-skill",
+        "boundaries": {
+          "authoring_source": "CLI source plus canonical skill wrapper",
+          "runtime_payload": "skill instructions and invoked formatter code",
+          "install_artifact": "npm package and staged skill directory",
+          "maintainer_infrastructure": "unit, integration, consistency, and release tooling"
+        },
+        "required_recommendations": ["test package inventory and staged installation"],
+        "prohibited_recommendations": ["judge runtime scripts by a script-to-skill ratio"]
+      }
+    },
+    {
+      "name": "operational-health-methodology",
+      "observed": {
+        "entrypoints": ["skills/repo-health-and-sync-skill/SKILL.md"],
+        "runtime_code": false,
+        "independent_skills": 1,
+        "external_contracts": true,
+        "published_artifacts": ["Codex plugin"]
+      },
+      "expected": {
+        "archetype": "operational-skill",
+        "boundaries": {
+          "authoring_source": "single runtime SKILL.md",
+          "runtime_payload": "single runtime SKILL.md",
+          "install_artifact": "skill directory and plugin package metadata",
+          "maintainer_infrastructure": "behavior fixtures, trust checks, regression, docs, and CI"
+        },
+        "required_recommendations": ["keep behavioral fixtures separate from optional model regression"],
+        "prohibited_recommendations": ["ship maintainer validators with the runtime skill"]
+      }
+    },
+    {
+      "name": "plugin-distribution-monorepo",
+      "observed": {
+        "entrypoints": ["multiple plugin skill entrypoints"],
+        "runtime_code": true,
+        "independent_skills": 4,
+        "external_contracts": true,
+        "published_artifacts": ["plugin", "marketplace entry", "release archive"]
+      },
+      "expected": {
+        "archetype": "distribution-monorepo",
+        "boundaries": {
+          "authoring_source": "plugin source packages",
+          "runtime_payload": "plugin-declared skills and tools",
+          "install_artifact": "versioned plugin and marketplace artifacts",
+          "maintainer_infrastructure": "release, compatibility, and provenance tooling"
+        },
+        "required_recommendations": ["align versions and verify each published artifact inventory"],
+        "prohibited_recommendations": ["use one ambiguous payload list for every distribution format"]
+      }
+    },
+    {
+      "name": "portable-payload-without-runtime-certification",
+      "observed": {
+        "entrypoints": ["skills/example/SKILL.md"],
+        "runtime_code": false,
+        "independent_skills": 1,
+        "external_contracts": false,
+        "published_artifacts": [],
+        "deterministic_payload_checks": true,
+        "recorded_runtime_runs": 0
+      },
+      "expected": {
+        "archetype": "markdown-only-skill",
+        "boundaries": {
+          "authoring_source": "canonical skill directory",
+          "runtime_payload": "canonical skill directory",
+          "install_artifact": "client-specific copy not yet verified",
+          "maintainer_infrastructure": "deterministic validators and fixtures"
+        },
+        "required_recommendations": ["report payload-portable candidate status and request named-runtime evidence"],
+        "prohibited_recommendations": ["claim runtime compatibility or workflow verification from schema checks"]
+      }
+    },
+    {
+      "name": "audit-with-secret-like-evidence",
+      "observed": {
+        "entrypoints": ["skills/audit/SKILL.md"],
+        "runtime_code": false,
+        "independent_skills": 1,
+        "external_contracts": false,
+        "published_artifacts": [],
+        "secret_like_match_locations": ["commit metadata", "ignored configuration"]
+      },
+      "expected": {
+        "archetype": "operational-skill",
+        "boundaries": {
+          "authoring_source": "audit methodology",
+          "runtime_payload": "read-only audit instructions",
+          "install_artifact": "copied skill directory",
+          "maintainer_infrastructure": "redacted fixtures and trust validation"
+        },
+        "required_recommendations": ["report status counts or paths and recommend rotation for plausible exposure"],
+        "prohibited_recommendations": ["print matched secret-like values in findings or transcripts"]
+      }
+    },
+    {
+      "name": "non-skill-reproducible-build-control",
+      "observed": {
+        "entrypoints": [],
+        "runtime_code": true,
+        "independent_skills": 0,
+        "external_contracts": true,
+        "published_artifacts": ["signed deb package"]
+      },
+      "expected": {
+        "archetype": "non-skill-control",
+        "boundaries": {
+          "authoring_source": "build source and dependency declarations",
+          "runtime_payload": "not applicable",
+          "install_artifact": "deb package, checksum, and provenance",
+          "maintainer_infrastructure": "build, policy, reproducibility, and release automation"
+        },
+        "required_recommendations": ["transfer only artifact practices supported by an equivalent skill artifact"],
+        "prohibited_recommendations": ["require release provenance for every Markdown-only skill"]
+      }
+    }
+  ]
+}

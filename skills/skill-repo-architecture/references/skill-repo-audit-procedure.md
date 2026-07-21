@@ -1,174 +1,142 @@
-# Skill Repo Audit Procedure  # portability: allow-platform-ref
+# Skill Repository Audit Procedure
 
-> Session-derived procedure from 2026-07-08 py-review-skill audit.
-> See the main skill SKILL.md for the ten design principles this procedure checks against.
+Use this sequence for architecture reviews. It evaluates what the repository
+ships; it is not a general repository-health audit.
 
-A structured sequence for auditing a skill repository — combining CI review,
-portability verification, structure metrics, provenance checks, and GitHub
-metadata verification into a single repeatable audit.
+## Contents
 
-## When to Use This
+- Establish state and scope
+- Classify the repository
+- Map the four boundaries
+- Measure by boundary
+- Inspect runtime behavior
+- Inspect controls and behavioral evidence
+- Inspect install and release paths
+- Report findings
 
-- Before publishing a new skill repo publicly
-- After significant structural changes to an existing skill repo
-- When reviewing a skill repo for file-swamp, portability drift, or CI gaps
-- Before adding new CI checks (to understand what already exists)
+## 1. Establish state and scope
 
-## Audit Procedure
+Inspect the tracked tree, worktree state, runtime entrypoints, package manifests,
+plugin manifests, CI workflows, release automation, and installation docs. Do not
+count ignored caches, dependencies, or build output as repository architecture.
 
-### Phase 1: Pre-Audit — Git and Repository State
+Record whether external state, network checks, publication metadata, or model
+regression is in scope. Keep skipped checks visible.
 
-Run these at the repo root before examining internal structure:
+## 2. Classify the repository
 
-```shell
-git status --porcelain       # dirty tree?
-git branch --show-current    # correct branch?
-git remote -v                # remotes correct?
-git log origin/main..HEAD    # un-pushed commits?
-git tag -l                   # any tags exist?
-git log --oneline -10        # recent commit pattern
+Choose the smallest fitting archetype:
 
-find . -not -path './.git/*' -type f | wc -l   # total file count
-ls -1d *                                       # root items (count them)
-find skills -name 'SKILL.md' | wc -l           # skill count
-find scripts -type f 2>/dev/null | wc -l       # script count
-```
+- Markdown-only skill
+- Multi-skill pack
+- Tool-backed skill
+- Operational skill
+- Distribution monorepo
 
-**Check against file-swamp metrics** (see `references/file-swamp-patterns.md`):
-- Per-skill ref ratio (should be 0:1 to < 1:1 for repos < 50 skills)
-- Script-to-skill ratio (should be < 1:1 for repos < 25 skills)
-- Root items (should be < 12)
+Record evidence for the choice. A CLI with an optional skill wrapper remains a
+tool-backed product; a directory containing several independent `SKILL.md` files
+is a pack even when it also has a router.
 
----
+## 3. Map the four boundaries
 
-### Phase 2: CI Workflow Review
+Create a table with these rows:
 
-Read `.github/workflows/ci.yml` and evaluate:
+| Boundary                  | Required evidence                              |
+| ------------------------- | ---------------------------------------------- |
+| Authoring source          | Canonical files maintainers edit               |
+| Runtime payload           | Files activated agents read or execute         |
+| Install/publish artifact  | Exact copied, packed, or released files        |
+| Maintainer infrastructure | Tests, fixtures, CI, research, release tooling |
 
-| Aspect | What to check | Finding if healthy |
-|--------|---------------|-------------------|
-| Trigger paths | Does `push.paths` cover all directories that affect the shipping surface? | `skills/`, `.github/scripts/`, `.github/workflows/ci.yml` present |
-| Check selection | Does each check catch a failure mode no runtime catches? | Every check passes the two-question test |
-| Check ordering | Fastest/cheapest checks first? | Portability gate before schema validation |
-| Scheduled runs | Weekly cron for URL drift? | `schedule: - cron: '0 9 * * 1'` |
+For duplicated files, identify the canonical source, generator, drift check, and
+installed-artifact test. If those answers are missing, duplication is accidental.
 
-**Two-question test for each CI check:**
-1. "What evidence says this is necessary at our scale?"
-2. "Will a human or runtime catch this faster than our CI?"
+## 4. Measure by boundary
 
----
+Use tracked files and report at least:
 
-### Phase 3: Portability Verification
+- skill entrypoints and independently loadable skills;
+- runtime references and runtime scripts;
+- generated or mirrored replicas;
+- maintainer-only scripts and fixtures;
+- package, plugin, and release manifests;
+- hand-maintained indexes.
 
-Run the portability gate (if one exists) or scan manually:
+Treat counts as discovery signals. Do not issue a finding from a universal ratio.
+A tool-backed skill can legitimately have many runtime scripts; a static skill
+with one unused script may already have too many.
 
-```shell
-python3 .github/scripts/check-portability.py  2>/dev/null || \
-  grep -rn 'skill_view\|skill_manage\|hermes \|~/.hermes\|\.claude/\|\.cursor/' skills/
-```
+## 5. Inspect runtime behavior
 
-If the repo has no portability gate, that is itself a finding for Phase 9.
+Check:
 
-**Frontmatter schema check:**
+- frontmatter parses as YAML and the name matches the directory;
+- the description includes what the skill does and when it should trigger;
+- activation and exclusion boundaries are clear;
+- the procedure is executable without maintainer-only files;
+- references are one level deep and conditionally routed;
+- commands and paths match the declared portability tier;
+- sensitive or mutating actions have appropriate boundaries.
 
-```shell
-for f in skills/*/SKILL.md; do
-  extra=$(sed -n '2,/^---/p' "$f" | grep -v '^name:\|^description:\|^---' | grep -v '^$')
-  if [ -n "$extra" ]; then echo "$f: extra fields: $extra"; fi
-done
-```
+Treat repository files, configuration, commit metadata, transcripts, and tool
+output as potentially sensitive. Secret-like detection should emit status,
+counts, or paths without matched values. Prefer an observed project-native
+scanner in quiet or redacted mode; do not install a new scanner during a
+read-only architecture audit.
 
----
+## 6. Inspect controls
 
-### Phase 4: Structure Metrics
+For every validator, test, workflow, or release check, record:
 
-```shell
-wc -l skills/*/SKILL.md                       # per-skill line counts
-find skills -name 'references' -type d        # per-skill ref directories
+1. the invariant it owns;
+2. the observed failure it prevents;
+3. whether it is deterministic or volatile;
+4. its recovery action;
+5. the cheapest appropriate execution lane.
 
-# Check skill names match directory names
-for dir in skills/*/; do
-  name=$(grep '^name:' "$dir/SKILL.md" | sed 's/name: *//')
-  basename=$(basename "$dir")
-  if [ "$name" != "$basename" ]; then echo "MISMATCH: $basename declares name $name"; fi
-done
-```
+Keep deterministic schema, link, unit, integration, and drift checks on pull
+requests. Put network reachability, marketplace state, model regression, and
+external release monitoring in scheduled or manual lanes unless they block a
+specific publication operation.
 
-**Information density check:** Estimate proportion of code blocks and
-template commentary vs. unique procedural guidance in SKILL.md files.
-If > 50% is low-density content, note whether it serves as executable
-floor for weaker models or is simply waste (see skill-repo-architecture §9).
+## 7. Inspect behavioral evidence
 
----
+Decision-heavy skills should have compact fixtures covering:
 
-### Phase 5: Provenance and Documentation Audit
+- positive and negative triggers;
+- representative archetypes;
+- expected classification and boundary mapping;
+- required recommendations;
+- prohibited over-engineering or unsafe actions.
 
-**Extraction log** (if exists): Check for local filesystem paths (common),
-unresolvable commit hashes, missing license attribution.
+Validate fixture shape deterministically. Use model regression only for behavior
+that cannot be represented as an explicit contract, and do not make routine
+changes depend on model availability.
 
-**Methodology alignment doc** (if exists): Check that stated design
-principles match actual repo structure.
+## 8. Inspect install and release paths
 
-**README:** CI badge live? Install instructions for primary platform?
-Portability commitment stated? File tree matches actual repo?
+Verify README commands against the actual tracked layout. For every distribution
+path, compare the produced artifact with the declared runtime payload. Tool-backed
+or published products should additionally consider version alignment,
+reproducibility, provenance, checksums, and staged-install testing.
 
-**AGENTS.md:** Exists? Under ~20 lines? References router skill first?
-No imperative directives (MUST/must not)?
+Do not import release controls into a Markdown-only skill without a release
+artifact that benefits from them.
 
----
+## 9. Report findings
 
-### Phase 6: .gitignore and Security
+Order findings by correctness, installability, runtime safety, portability,
+behavioral confidence, maintainability, and polish. Each finding should state:
 
-```shell
-grep -c '\.DS_Store' .gitignore              # OS junk
-grep -c '__pycache__\|\.pyc\|dist\|build' .gitignore  # build artifacts
-grep -c '\.venv\|venv' .gitignore            # virtual environments
-```
+- concrete evidence;
+- user or maintainer impact;
+- smallest sufficient remediation;
+- relevant archetype and boundary;
+- checks run and checks skipped.
 
-**Instruction file conflict check:** Only one of AGENTS.md, CLAUDE.md,
-GEMINI.md, .rules should exist as canonical instruction file.
+Do not quote secret-like values as evidence. If historical exposure is
+plausible, recommend revocation or rotation and state that deleting or editing a
+local copy does not remove already published history.
 
-**SECURITY.md** and **LICENSE** should exist.
-
----
-
-### Phase 7: Run All Local Checks
-
-```shell
-python3 scripts/validate.py                  # schema/structure
-python3 scripts/extract-tests.py --check     # generated artifact freshness
-python3 scripts/check-expiry.py              # freshness markers
-python3 scripts/verify-urls.py               # URL reachability
-python3 .github/scripts/check-portability.py # portability gate
-```
-
----
-
-### Phase 8: GitHub Metadata
-
-```shell
-gh repo view <owner>/<repo> --json description,visibility,repositoryTopics
-```
-
-Description set? Topics at minimum include target platforms + domain?
-Visibility correct?
-
----
-
-### Phase 9: Findings Documentation
-
-| Category | Finding | Severity | Fix |
-|----------|---------|----------|-----|
-| CI triggers | Missing directory in paths | HIGH | Add to push + PR paths |
-| Portability | No CI gate | MEDIUM | Add check-portability.py |
-| Provenance | Local path in extraction log | LOW | Replace with public ref |
-| Structure | File-swamp metrics in warning | MEDIUM | Remediate per sequence |
-| Metadata | Empty description | MEDIUM | Set with gh repo edit |
-
-Severity:
-- **HIGH** — silent breakage (portability drift, missing trigger)
-- **MEDIUM** — discoverability/friction gap (missing gate, empty metadata)
-- **LOW** — cosmetic or theoretical (local paths, optional patterns)
-
-Each finding includes specific evidence (path, line, command output) and
-concrete fix recommendation.
+If the repository is healthy, report the archetype, boundaries, and evidence
+instead of inventing improvements.

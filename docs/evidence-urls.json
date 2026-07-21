@@ -10,27 +10,6 @@
       "notes": "Official agentskills.io specification"
     },
     {
-      "name": "CodeSigils GitHub",
-      "url": "https://github.com/CodeSigils",
-      "expected_statuses": [200],
-      "source_section": "README.md",
-      "notes": "CodeSigils organization on GitHub"
-    },
-    {
-      "name": "npm registry API",
-      "url": "https://registry.npmjs.org/",
-      "expected_statuses": [200],
-      "source_section": "references/npm-publishing-for-agent-skills.md",
-      "notes": "npm package registry API"
-    },
-    {
-      "name": "npm downloads API",
-      "url": "https://api.npmjs.org/downloads/point/last-month/lodash",
-      "expected_statuses": [200],
-      "source_section": "references/npm-publishing-for-agent-skills.md",
-      "notes": "npm package download statistics API"
-    },
-    {
       "name": "GitHub CodeSigils skill-repo-architecture",
       "url": "https://github.com/CodeSigils/skill-repo-architecture",
       "expected_statuses": [200],

@@ -1,208 +1,165 @@
 # Skill Repo Architecture
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![CI](https://github.com/CodeSigils/skill-repo-architecture/actions/workflows/ci.yml/badge.svg)](https://github.com/CodeSigils/skill-repo-architecture/actions)
-[![agentskills.io](https://img.shields.io/badge/agentskills.io-v1-blue)](https://agentskills.io/specification)
+[![CI](https://github.com/CodeSigils/skill-repo-architecture/actions/workflows/ci.yml/badge.svg)](https://github.com/CodeSigils/skill-repo-architecture/actions/workflows/ci.yml)
+[![Skill format](https://img.shields.io/badge/skill%20format-agentskills.io-blue)](https://agentskills.io/specification)
 
-**Design principles for structuring, shipping, and maintaining agent skill
-repositories.** Covers the *why* before the *how* — methodology over collection,
-shipping boundaries, proportionate anti-drift, portability gradations, and
-cross-project pattern preservation.
+A portable-format methodology candidate for designing, reviewing, and tightening
+agent skill repositories. It starts by classifying what the repository ships,
+then separates authoring source, runtime payload, install artifact, and maintainer
+infrastructure before recommending validation or release machinery.
 
-This is not a collection of skills. It is a methodology that teaches any
-agent how to architect skill repos.
+The central rule is simple: architecture follows the artifact. A static Markdown
+skill, a routed skill pack, a CLI-backed skill, and a published plugin should not
+receive the same structure merely because each contains a `SKILL.md`.
 
----
+## What it covers
 
-## Quick Start
+- Five repository archetypes: Markdown-only, multi-skill, tool-backed,
+  operational, and distribution monorepo.
+- Four explicit boundaries: authoring source, runtime payload, install/publish
+  artifact, and maintainer infrastructure.
+- Progressive disclosure and portable runtime instructions.
+- Canonical-source, generated-payload, and installed-copy drift decisions.
+- Deterministic validation, behavioral fixtures, volatile monitoring, and
+  release-only controls.
+- File-swamp diagnosis based on ownership and consumers rather than universal
+  script or reference ratios.
 
-Make the skill discoverable by your agent.
+Use `repo-health-and-sync-skill` for general repository health and
+`skill-discovery` for finding third-party skills. This skill focuses specifically
+on the architecture of repositories that create or distribute skills.
 
-<details>
-<summary><b>Hermes Agent</b></summary>
+## Install
 
-**Recommended for development — clone the repo and add to `external_dirs`:**
-```yaml
-skills:
-  external_dirs:
-    - /path/to/skill-repo-architecture/skills
-```
-Every commit is immediately reflected without reinstalling.
+The canonical payload is
+[`skills/skill-repo-architecture/`](skills/skill-repo-architecture/). There is no
+build or generated mirror.
 
-**For end users — install from hub:**
-```bash
-hermes skills install CodeSigils/skill-repo-architecture
-```
-
-*Other agents: see sections below for their native setup commands.*
-</details>
-
-<details>
-<summary><b>Claude Code</b></summary>
-
-```bash
-cp -r skills/skill-repo-architecture ~/.claude/skills/
-```
-
-Claude Code discovers skills by scanning `.claude/skills/` for SKILL.md files.
-</details>
-
-<details>
-<summary><b>Codex CLI</b></summary>
+The generic installation shape is to copy that directory into a client-supported
+skill location:
 
 ```bash
-cp -r skills/skill-repo-architecture ~/.codex/skills/
+cp -R skills/skill-repo-architecture <your-skills-directory>/
 ```
 
-Codex CLI discovers skills in `.codex/skills/` via filesystem walk.
-</details>
+For development, point clients that support external skill directories at this
+repository's `skills/` directory so edits are immediately visible.
 
-<details>
-<summary><b>OpenCode</b></summary>
+Client discovery locations change independently of the payload format. Verify
+the named client's current documentation and record its version and installation
+result before claiming support.
 
-```bash
-cp -r skills/skill-repo-architecture .opencode/skills/
-```
-</details>
+## Support status
 
-<details>
-<summary><b>Gemini CLI / .agents/ path</b></summary>
+Deterministic checks establish that the canonical payload has valid baseline
+frontmatter, resolvable references, and no known platform-only runtime markers.
+That supports a **payload-portable candidate** claim only.
 
-```bash
-cp -r skills/skill-repo-architecture .agents/skills/
-```
+No named runtime and version has yet received recorded installation plus positive
+and negative workflow certification for this payload revision. The current
+runtime status is therefore `candidate`, not “compatible” or “workflow verified.”
+See [the portability contract](docs/portability-contract.md) for evidence levels
+and certification requirements.
 
-Gemini CLI explicitly supports `.agents/skills/` as a cross-tool path.
-</details>
+## Use
 
-<details>
-<summary><b>Generic agentskills.io client</b></summary>
+Ask an agent with the skill installed to:
 
-```bash
-cp -r skills/skill-repo-architecture <your-skills-dir>/
-```
+- design a new skill repository;
+- audit an existing skill repository's boundaries;
+- decide whether a payload manifest or generated copy is justified;
+- reduce file-swamp without deleting required product code;
+- add validation and behavioral evaluation proportionate to the artifact;
+- extract a portable core from platform-specific instructions.
 
-Most clients that support the agentskills.io standard scan a `skills/`
-or `.agents/skills/` directory.
-</details>
+The runtime procedure first classifies the repository, maps the four boundaries,
+and then selects controls appropriate to the observed artifact.
 
-For agents that support external skill directories, point the config at
-`skills/skill-repo-architecture/` for live-updating access.
+The reviewable behavior contract lives in
+[`evals/cases/architecture-audit.json`](evals/cases/architecture-audit.json).
 
----
-
-## How to Use
-
-1. **Load `skill-repo-architecture`** when designing or reviewing a skill repo.
-2. **The skill teaches 8 design principles** with decision frameworks for each.
-3. **Use the companion methodology skills** for related tasks:
-   - [`skill-discovery`](https://github.com/CodeSigils/skill-discovery) — how to *find* skills in catalogs and marketplaces
-   - [`repo-health-and-sync-skill`](https://github.com/CodeSigils/repo-health-and-sync-skill) — how to *audit* any repo's health
-   - [`py-review-skill`](https://github.com/CodeSigils/py-review-skill) — Python code review rules
-
-All three share the same design philosophy. This architecture skill is the
-layer above them: it teaches how to *design* repos that those skills can
-then audit.
-
----
-
-## Portability
-
-Each shipped file in `skills/` is checked by CI for agent-specific references
-(`skill_view`, `hermes skills`, platform adapter paths, etc.). If a commit
-adds a platform-specific command, CI fails before it reaches the runtime.
-
-The shipped `SKILL.md` is cross-agent compatible and contains no
-platform-specific runtime commands. Reference files may include marked
-platform-specific examples when explaining portability or migration patterns;
-the portability gate allows those only in reference material, not in the
-runtime procedure.
-
----
-
-## Is This The Same As `skill-discovery`?
-
-No. They are complementary methodologies at different abstraction levels:
-
-| Skill | Question it answers |
-|-------|-------------------|
-| **skill-discovery** | "Find me the right skill for this task" |
-| **repo-health-and-sync-skill** | "Check this repo for health issues" |
-| **skill-repo-architecture** | "Design and ship a skill repo correctly" |
-
----
-
-## What This Repo Contains
+## Architecture
 
 ```text
 skill-repo-architecture/
-├── README.md                   # you are here
-├── SECURITY.md                 # vulnerability reporting
-├── LICENSE                     # MIT
-├── .gitignore
-├── .github/
-│   ├── workflows/ci.yml        # validation pipeline
-│   └── scripts/check-portability.py  # cross-agent portability gate
-├── scripts/
-│   ├── payload-manifest.json   # declares mirrored runtime files
-│   ├── sync-payload.sh         # verifies/syncs payload references
-│   └── validate.py             # skill source integrity checks
+├── AGENTS.md                    # maintainer routing; not shipped
+├── CITATION.cff
+├── LICENSE
+├── README.md
+├── SECURITY.md
+├── requirements-dev.txt        # exact validation dependencies
 ├── docs/
-│   └── evidence-urls.json      # machine-readable URL expectations
-├── references/                 # per-principle reference detail
-│   ├── agent-concepts-study-cross-project-patterns.md
-│   ├── dev-workflow-patterns.md
-│   ├── file-swamp-patterns.md
-│   ├── npm-publishing-for-agent-skills.md
-│   ├── operational-patterns.md
-│   ├── payload-manifest-pattern.md
-│   ├── portability-migration.md
-│   ├── portability-patterns.md
-│   └── skill-repo-audit-procedure.md
+│   ├── evidence-urls.json       # external monitoring contract
+│   └── portability-contract.md  # compatibility evidence levels and status
+├── evals/
+│   └── cases/
+│       └── architecture-audit.json
+├── scripts/
+│   ├── validate.py              # deterministic schema/link/fixture checks
+│   └── verify-urls.py           # scheduled external monitoring
 └── skills/
-    └── skill-repo-architecture/
-        ├── SKILL.md            # compact runtime procedure
-        └── references/         # synced from root references/
+    └── skill-repo-architecture/ # canonical runtime payload
+        ├── SKILL.md
+        └── references/
 ```
 
-Shipping boundary: `skills/skill-repo-architecture/` is the tracked runtime
-payload. Root `references/` are the editable source copy; the payload
-references are kept byte-identical by `scripts/sync-payload.sh`. Everything
-else is development infrastructure.
+Only `skills/skill-repo-architecture/` ships. The tracked payload is also the
+authoring source and install artifact, so no manifest, mirror, or sync script is
+needed. CI, fixtures, evidence contracts, and repository documentation are
+maintainer infrastructure.
 
----
+## Design examples behind the methodology
+
+| Repository shape               | Architectural lesson                                                            |
+| ------------------------------ | ------------------------------------------------------------------------------- |
+| Small discovery methodology    | Keep runtime guidance compact and monitor external contracts separately.        |
+| Routed Python review pack      | Test routing and preserve standalone safety for every focused skill.            |
+| Markdown formatter CLI         | Let the package manifest own executable payload and test staged installation.   |
+| Operational health methodology | Pair structural validation with explicit behavioral fixtures.                   |
+| Reproducible build repository  | Import provenance and release controls only when a real artifact warrants them. |
+
+These are transfer patterns, not templates. The skill asks whether the same
+artifact and failure mode exist before recommending the corresponding control.
 
 ## Verify
 
+Create an isolated environment and install the exact development dependencies:
+
 ```bash
-python3 .github/scripts/check-portability.py   # cross-agent gate
-python3 scripts/validate.py                     # source integrity
-python3 scripts/validate.py --self-test         # validation self-test
-python3 scripts/verify-urls.py                  # URL evidence check
-bash scripts/sync-payload.sh --ci               # payload in sync
-bash scripts/sync-payload.sh --self-test        # sync script self-test
-bash -n scripts/sync-payload.sh                 # shell syntax
-ruff check scripts .github/scripts              # Python lint
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
 ```
 
----
+Run the deterministic suite:
 
-## References
+```bash
+.venv/bin/python scripts/validate.py
+.venv/bin/python scripts/validate.py --self-test
+.venv/bin/python .github/scripts/check-portability.py
+.venv/bin/python -m ruff check scripts .github/scripts
+```
 
-| Reference | Purpose |
-| :--- | :--- |
-| `agent-concepts-study-cross-project-patterns.md` | Full 6-principle research note with evidence from 4 projects |
-| `dev-workflow-patterns.md` | Development workflows, no-copy principle, README patterns, session findings |
-| `file-swamp-patterns.md` | Diagnostic checklist, causal chain, ecosystem benchmarks |
-| `npm-publishing-for-agent-skills.md` | Evaluating and publishing an agent-first tool on npm |
-| `operational-patterns.md` | CI triage, fallback chains, evidence-base as architecture |
-| `payload-manifest-pattern.md` | JSON manifest + bash sync implementation details |
-| `portability-migration.md` | Migration path from platform-specific to cross-agent skill instructions |
-| `portability-patterns.md` | Three-tier gradation, decision tree, portability CI gate |
-| `skill-repo-audit-procedure.md` | 9-phase audit for skill repositories |
+External URL checks are intentionally separate because they depend on network
+and provider state:
 
----
+```bash
+.venv/bin/python scripts/verify-urls.py
+```
 
-## Licenses
+CI runs deterministic checks on pull requests and external monitoring only on
+schedule or manual dispatch. Runtime-specific behavior remains a separate,
+non-blocking certification activity.
+
+## Maintainer ownership
+
+- `skills/skill-repo-architecture/SKILL.md` owns runtime procedure and triggers.
+- Runtime references own conditional detail and examples.
+- `evals/` owns intended classification and recommendation behavior.
+- `README.md` owns installation, repository layout, and verification commands.
+- `docs/` and any research notes are evidence, not runtime authority.
+- `AGENTS.md` routes maintainers to these sources without repeating them.
+
+## License
 
 MIT — see [LICENSE](LICENSE).

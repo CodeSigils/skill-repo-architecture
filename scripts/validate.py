@@ -1,183 +1,278 @@
 #!/usr/bin/env python3
-"""Validate skill-repo-architecture source integrity."""
+"""Validate the canonical skill payload and behavioral contract."""
 
 from __future__ import annotations
 
+import json
+import re
 import sys
-from contextlib import redirect_stderr
-from io import StringIO
+import tempfile
 from pathlib import Path
+
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL_DIR = ROOT / "skills" / "skill-repo-architecture"
 SKILL = SKILL_DIR / "SKILL.md"
 REF_DIR = SKILL_DIR / "references"
+README = ROOT / "README.md"
+EVAL = ROOT / "evals" / "cases" / "architecture-audit.json"
+EVIDENCE = ROOT / "docs" / "evidence-urls.json"
+PORTABILITY_CONTRACT = ROOT / "docs" / "portability-contract.md"
 
-ALLOWED_FIELDS = {
-    "name",
-    "description",
-    "version",
-    "author",
-    "license",
-    "tier",
-    "ref",
-    "compatibility",
-    "metadata",
-}
+ALLOWED_FIELDS = {"name", "description"}
 REQUIRED_SECTIONS = {
-    "## When to Use",
-    "## Default Procedure",
+    "## Procedure",
+    "## Repository Archetypes",
+    "## Four Boundaries",
     "## Reference Routing",
-    "## Verification Checklist",
+    "## Completion Checklist",
 }
-REQUIRED_REFERENCES = {
-    "agent-concepts-study-cross-project-patterns.md",
-    "dev-workflow-patterns.md",
-    "file-swamp-patterns.md",
-    "npm-publishing-for-agent-skills.md",
-    "operational-patterns.md",
-    "payload-manifest-pattern.md",
-    "portability-migration.md",
-    "portability-patterns.md",
-    "skill-repo-audit-procedure.md",
+ARCHETYPES = {
+    "markdown-only-skill",
+    "multi-skill-pack",
+    "tool-backed-skill",
+    "operational-skill",
+    "distribution-monorepo",
+    "non-skill-control",
 }
+BOUNDARIES = {
+    "authoring_source",
+    "runtime_payload",
+    "install_artifact",
+    "maintainer_infrastructure",
+}
+LINK_RE = re.compile(r"(?<!!)\[[^]]+\]\(([^)]+)\)")
+NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
-def fail(msg: str) -> None:
-    print(f"FAIL: {msg}", file=sys.stderr)
-    raise SystemExit(1)
+def fail(message: str) -> None:
+    raise ValueError(message)
 
 
-def parse_frontmatter(text: str, *, strict: bool = True) -> dict[str, str]:
-    """Parse YAML frontmatter from text.
-
-    Args:
-        text: Input text starting with '---'
-        strict: If True, raise SystemExit on failure. If False, return empty dict on failure.
-    """
+def parse_skill(path: Path) -> tuple[dict[str, object], str]:
+    text = path.read_text(encoding="utf-8")
     if not text.startswith("---\n"):
-        if strict:
-            fail("SKILL.md does not start with YAML frontmatter")
-        return {}
+        fail(f"{path}: missing opening YAML frontmatter delimiter")
     try:
-        _, raw, _ = text.split("---\n", 2)
-    except ValueError:
-        if strict:
-            fail("SKILL.md frontmatter is not closed")
-        return {}
-
-    data: dict[str, str] = {}
-    for line in raw.splitlines():
-        if not line.strip() or ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        data[key.strip()] = value.strip().strip('"')
-    return data
+        _, raw, body = text.split("---\n", 2)
+    except ValueError as exc:
+        raise ValueError(f"{path}: unclosed YAML frontmatter") from exc
+    data = yaml.safe_load(raw)
+    if not isinstance(data, dict):
+        fail(f"{path}: frontmatter must be a YAML mapping")
+    return data, body
 
 
-def validate_frontmatter(data: dict[str, str]) -> None:
+def validate_frontmatter(data: dict[str, object], path: Path) -> None:
     extra = set(data) - ALLOWED_FIELDS
     if extra:
-        fail(f"unsupported frontmatter fields: {sorted(extra)}")
-    if data.get("name") != "skill-repo-architecture":
-        fail("frontmatter name must be skill-repo-architecture")
-    if len(data.get("description", "").split()) < 12:
-        fail("description too short to trigger reliably")
+        fail(f"{path}: unsupported frontmatter fields: {sorted(extra)}")
+    if set(data) != ALLOWED_FIELDS:
+        fail(f"{path}: frontmatter must contain exactly name and description")
+    name = data["name"]
+    description = data["description"]
+    if not isinstance(name, str) or not NAME_RE.fullmatch(name) or len(name) > 64:
+        fail(f"{path}: invalid skill name")
+    if name != path.parent.name:
+        fail(f"{path}: skill name must match directory {path.parent.name!r}")
+    if not isinstance(description, str) or not description.strip():
+        fail(f"{path}: description must be a non-empty string")
+    if len(description) > 1024:
+        fail(f"{path}: description exceeds 1024 characters")
+    if len(description.split()) < 12:
+        fail(f"{path}: description is too short to trigger reliably")
 
 
-def check_skill() -> None:
+def local_link_errors(path: Path, root: Path) -> list[str]:
+    errors: list[str] = []
+    for target in LINK_RE.findall(path.read_text(encoding="utf-8")):
+        target = target.strip().strip("<>")
+        if not target or target.startswith(("http://", "https://", "mailto:", "#")):
+            continue
+        relative = target.split("#", 1)[0]
+        if relative and not (path.parent / relative).resolve().is_relative_to(root.resolve()):
+            errors.append(f"{path}: local link escapes repository: {target}")
+        elif relative and not (path.parent / relative).exists():
+            errors.append(f"{path}: missing local link target: {target}")
+    return errors
+
+
+def validate_skill() -> None:
     if not SKILL.exists():
-        fail("skills/skill-repo-architecture/SKILL.md missing")
-    text = SKILL.read_text(encoding="utf-8")
-    body = text.split("---\n", 2)[2] if text.startswith("---\n") else text
-    data = parse_frontmatter(text)
-    validate_frontmatter(data)
-    for sec in sorted(REQUIRED_SECTIONS):
-        if sec not in body:
-            fail(f"missing section: {sec}")
-    # Portability check on body
-    for needle in (".hermes", "hermes-verify"):
-        if needle in body:
-            fail(f"body contains non-portable runtime marker: {needle}")
+        fail(f"missing canonical runtime entrypoint: {SKILL}")
+    data, body = parse_skill(SKILL)
+    validate_frontmatter(data, SKILL)
+    for section in sorted(REQUIRED_SECTIONS):
+        if section not in body:
+            fail(f"{SKILL}: missing section {section!r}")
+    if len(SKILL.read_text(encoding="utf-8").splitlines()) > 500:
+        fail(f"{SKILL}: exceeds the 500-line runtime budget")
+
+    references = sorted(REF_DIR.glob("*.md"))
+    if not references:
+        fail(f"{REF_DIR}: no runtime references found")
+    for reference in references:
+        route = f"references/{reference.name}"
+        if route not in body:
+            fail(f"{SKILL}: does not route {route}")
+
+    for path in [SKILL, *references]:
+        errors = local_link_errors(path, SKILL_DIR)
+        if errors:
+            fail("\n".join(errors))
 
 
-def check_references() -> None:
-    if not REF_DIR.exists():
-        fail("payload references directory missing")
-    root_ref_dir = ROOT / "references"
-    if not root_ref_dir.exists():
-        fail("root references directory missing")
-    root_set = {p.name for p in root_ref_dir.glob("*.md")}
-    payload_set = {p.name for p in REF_DIR.glob("*.md")}
-    if root_set != payload_set:
-        extra = payload_set - root_set
-        missing = root_set - payload_set
-        if extra:
-            fail(f"payload has extra references: {sorted(extra)}")
-        if missing:
-            fail(f"payload missing references: {sorted(missing)}")
-    actual = payload_set
-    missing = REQUIRED_REFERENCES - actual
-    if missing:
-        fail(f"missing references: {sorted(missing)}")
-
-    text = SKILL.read_text(encoding="utf-8")
-    for name in sorted(REQUIRED_REFERENCES):
-        if f"references/{name}" not in text:
-            fail(f"SKILL.md does not route reference: {name}")
+def validate_readme() -> None:
+    if not README.exists():
+        fail("README.md is missing")
+    text = README.read_text(encoding="utf-8")
+    required = (
+        "## Install",
+        "## Support status",
+        "## Architecture",
+        "## Verify",
+        "## Maintainer ownership",
+        "skills/skill-repo-architecture/",
+        "evals/cases/architecture-audit.json",
+        "docs/portability-contract.md",
+    )
+    for phrase in required:
+        if phrase not in text:
+            fail(f"README.md is missing {phrase!r}")
+    errors = local_link_errors(README, ROOT)
+    if errors:
+        fail("\n".join(errors))
 
 
-def check_readme() -> None:
-    readme = ROOT / "README.md"
-    if not readme.exists():
-        fail("README.md missing")
-    text = readme.read_text()
-    normalized = " ".join(text.split())
-    for phrase in ("skills/skill-repo-architecture/", "agent skill repositor"):
-        if phrase not in normalized:
-            fail(f"README.md missing: {phrase}")
-
-
-def check_self_test() -> None:
-    """Run internal self-tests for the validation logic."""
-    # Test parse_frontmatter with valid input
-    valid_fm = "---\nname: skill-repo-architecture\nversion: 1.0\n---\n"
-    data = parse_frontmatter(valid_fm)
-    assert data["name"] == "skill-repo-architecture"
-    assert data["version"] == "1.0"
-
-    # Test parse_frontmatter rejects invalid (non-strict mode)
-    assert parse_frontmatter("no frontmatter", strict=False) == {}
-    # With strict=False, short description still parses but validate_frontmatter would fail
-    parsed = parse_frontmatter("---\nname: test\n---\n", strict=False)
-    assert "name" in parsed
-
-    # Test validate_frontmatter
+def validate_eval() -> None:
     try:
-        validate_frontmatter({"name": "skill-repo-architecture", "description": "a " * 12})
-        print("  PASS  validate_frontmatter valid")
-    except SystemExit:
-        assert False, "should not fail"
+        data = json.loads(EVAL.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"{EVAL}: unreadable behavioral contract: {exc}") from exc
+    if data.get("schema_version") != 1:
+        fail(f"{EVAL}: schema_version must be 1")
+    if data.get("skill_name") != "skill-repo-architecture":
+        fail(f"{EVAL}: skill_name mismatch")
+    trigger = data.get("trigger")
+    if not isinstance(trigger, dict):
+        fail(f"{EVAL}: trigger must be an object")
+    for polarity in ("positive", "negative"):
+        values = trigger.get(polarity)
+        if not isinstance(values, list) or not values or not all(isinstance(v, str) for v in values):
+            fail(f"{EVAL}: trigger.{polarity} must be a non-empty string list")
 
+    fixtures = data.get("fixtures")
+    if not isinstance(fixtures, list) or len(fixtures) < 5:
+        fail(f"{EVAL}: at least five representative fixtures are required")
+    seen: set[str] = set()
+    covered: set[str] = set()
+    for fixture in fixtures:
+        if not isinstance(fixture, dict) or not isinstance(fixture.get("name"), str):
+            fail(f"{EVAL}: every fixture needs a string name")
+        name = fixture["name"]
+        if name in seen:
+            fail(f"{EVAL}: duplicate fixture name {name!r}")
+        seen.add(name)
+        expected = fixture.get("expected")
+        if not isinstance(expected, dict):
+            fail(f"{EVAL}: fixture {name!r} needs expected behavior")
+        archetype = expected.get("archetype")
+        if archetype not in ARCHETYPES:
+            fail(f"{EVAL}: fixture {name!r} has invalid archetype {archetype!r}")
+        covered.add(archetype)
+        boundaries = expected.get("boundaries")
+        if not isinstance(boundaries, dict) or set(boundaries) != BOUNDARIES:
+            fail(f"{EVAL}: fixture {name!r} must declare all four boundaries")
+        for field in ("required_recommendations", "prohibited_recommendations"):
+            values = expected.get(field)
+            if not isinstance(values, list) or not values or not all(isinstance(v, str) for v in values):
+                fail(f"{EVAL}: fixture {name!r} needs a non-empty {field} list")
+    if covered != ARCHETYPES:
+        fail(f"{EVAL}: archetype coverage mismatch: {sorted(ARCHETYPES - covered)} missing")
+    required_fixtures = {
+        "portable-payload-without-runtime-certification",
+        "audit-with-secret-like-evidence",
+    }
+    if not required_fixtures <= seen:
+        fail(f"{EVAL}: required evidence fixtures missing: {sorted(required_fixtures - seen)}")
+
+
+def validate_portability_contract() -> None:
     try:
-        with redirect_stderr(StringIO()):
-            validate_frontmatter({"name": "skill-repo-architecture", "description": "short"})
-        assert False, "should have failed"
-    except SystemExit:
+        text = PORTABILITY_CONTRACT.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ValueError(f"{PORTABILITY_CONTRACT}: unreadable: {exc}") from exc
+    required = (
+        "## Evidence levels",
+        "## Runtime states",
+        "## Current status",
+        "Payload portable",
+        "Install verified",
+        "Workflow verified",
+        "`candidate`",
+    )
+    for phrase in required:
+        if phrase not in text:
+            fail(f"{PORTABILITY_CONTRACT}: missing {phrase!r}")
+
+
+def validate_evidence_sources() -> None:
+    try:
+        entries = json.loads(EVIDENCE.read_text(encoding="utf-8"))["urls"]
+    except (OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"{EVIDENCE}: invalid evidence manifest: {exc}") from exc
+    if not isinstance(entries, list) or not entries:
+        fail(f"{EVIDENCE}: urls must be a non-empty list")
+    for entry in entries:
+        if not isinstance(entry, dict):
+            fail(f"{EVIDENCE}: every URL entry must be an object")
+        source_name = entry.get("source_section")
+        url = entry.get("url")
+        if not isinstance(source_name, str) or not isinstance(url, str):
+            fail(f"{EVIDENCE}: every entry needs string url and source_section fields")
+        source = (ROOT / source_name).resolve()
+        if not source.is_relative_to(ROOT.resolve()) or not source.is_file():
+            fail(f"{EVIDENCE}: source file does not exist: {source_name}")
+        if url not in source.read_text(encoding="utf-8"):
+            fail(f"{EVIDENCE}: {url} is not present in {source_name}")
+
+
+def self_test() -> None:
+    folded = "---\nname: example-skill\ndescription: >\n  Folded descriptions parse as one complete and useful YAML string for reliable skill triggering.\n---\n# Body\n"
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        skill = root / "example-skill" / "SKILL.md"
+        skill.parent.mkdir()
+        skill.write_text(folded, encoding="utf-8")
+        data, _ = parse_skill(skill)
+        validate_frontmatter(data, skill)
+        source = root / "README.md"
+        source.write_text("[missing](nope.md)", encoding="utf-8")
+        assert local_link_errors(source, root)
+    try:
+        validate_frontmatter({"name": "Bad_Name", "description": "word " * 12}, SKILL)
+    except ValueError:
         pass
-
-    print("  PASS  validate.py self-tests")
+    else:
+        raise AssertionError("invalid skill names must fail")
+    print("PASS: validator self-tests")
 
 
 def main() -> int:
-    if "--self-test" in sys.argv:
-        check_self_test()
-        return 0
-
-    check_skill()
-    check_references()
-    check_readme()
-    print("OK: skill source checks pass")
+    try:
+        if "--self-test" in sys.argv:
+            self_test()
+        else:
+            validate_skill()
+            validate_readme()
+            validate_eval()
+            validate_portability_contract()
+            validate_evidence_sources()
+            print("PASS: canonical payload, docs, links, and behavioral contract")
+    except (AssertionError, ValueError) as exc:
+        print(f"FAIL: {exc}", file=sys.stderr)
+        return 1
     return 0
 
 

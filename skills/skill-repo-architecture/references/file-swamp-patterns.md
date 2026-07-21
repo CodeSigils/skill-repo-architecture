@@ -1,78 +1,48 @@
-# File-Swamp Patterns — Session Detail
+# File-Swamp and Ownership Patterns
 
-> Session-derived detail from 2026-07-08 file-swamp analysis.
-> See the main skill SKILL.md §7 for the actionable principles.
+File-swamp is an ownership problem, not a file-count threshold. It appears when
+files lack a clear consumer, canonical source, or deletion condition.
 
-## Causal Cascade: Full Trace
+## Diagnostic questions
 
-From hermes-skill-hq (161 files, 9 skills):
+For each suspicious file or directory, ask:
 
-```text
-No distribution boundary
-  -> per-guide refs/ directories (65 files)
-  -> hq-review pipeline to maintain refs (43 files)
-  -> ADRs for architecture decisions (10 files)
-  -> index/ because frontmatter wasn't trusted as catalog (3 files)
-  -> shell+Python pairs in scripts/ (6 files)
-  = 161 files for 9 skills
-```
+1. Which of the four boundaries owns it?
+2. What reads, executes, installs, publishes, or validates it?
+3. Is it canonical, generated, or historical?
+4. What concrete failure occurs if it disappears or drifts?
+5. Is the same information maintained elsewhere?
 
-Each step made sense given the state at the time. No step included the rule "can a runtime consume the skill without this file?"
+## Strong signals
 
-## How the Bridge Plan Cut Each Driver
+- Tracked replicas without a generator and drift check.
+- Runtime references that `SKILL.md` never routes to.
+- Maintainer plans, research, fixtures, or CI helpers inside the payload.
+- Hand-maintained indexes that duplicate filesystem or manifest discovery.
+- Scripts with no caller in runtime instructions, package scripts, CI, or docs.
+- Several sources claiming ownership of the same workflow.
+- Validators that enforce prose layout without protecting behavior or an artifact.
+- Generated artifacts committed even though installation can consume the source.
 
-By declaring skills/ as the shipping surface:
+## Archetype-sensitive interpretation
 
-| Driver | Bridge decision | Evidence basis |
-|--------|----------------|---------------|
-| Per-guide refs/ | No per-skill refs. Inline as code blocks. | addyosmani: 24 skills, no references/, ~68K stars |
-| Review pipeline | One rg script (3 lines of logic) | addyosmani: 2 scripts total |
-| ADRs | Not created at this scale | No compared ecosystem repo ships ADRs alongside skills |
-| index/ | Not created — ls skills/ is the catalog | agentskills.io spec; no runtime reads prose indexes |
-| Dual scripts | One language (Python) | addyosmani: all Python |
+| Observation                | Healthy possibility                                   | Unhealthy possibility                     |
+| -------------------------- | ----------------------------------------------------- | ----------------------------------------- |
+| Many scripts, one skill    | Tool-backed skill with tested runtime code            | Static skill with speculative helpers     |
+| Many references, one skill | Conditional domain variants with direct routing       | Historical notes copied into payload      |
+| Large maintainer surface   | Operational or released product with owned invariants | Checks added without failure evidence     |
+| Duplicate payload tree     | Required package/install artifact with drift test     | Convenience copy with no install consumer |
+| Several skills             | Independently loadable pack with router tests         | Accidental fragmentation of one procedure |
 
-## Six-Metric Diagnostic Detail
+## Remediation order
 
-| Metric | Swamp signal | Healthy range | How to measure |
-|--------|--------------|---------------|----------------|
-| Per-skill ref ratio | > 3:1 ref files per SKILL.md | 0 (addyosmani) to < 1:1 | find skills/*/references/ -name '*.md' | wc -l; ls skills/*/SKILL.md | wc -l |
-| Hand-maintained indexes | INDEX.md, DESCRIPTIONS.md prose | Generated JSON or none | test -f INDEX.md |
-| Dev artifacts shipped | ADRs, review infra in skills/ dir | Dev in labelled non-shipping area | ls for adr/, dev/, plan.md, todos.md |
-| Script-to-skill ratio | > 2:1 | 0.1-0.3:1 (2-4 total) | ls scripts/*.sh scripts/*.py 2>/dev/null | wc -l; ls skills/*/SKILL.md | wc -l |
-| Root items | > 12 | 6-8 | ls -1d * | wc -l |
-| Agent instruction length | > 100 lines | ~20 lines | wc -l AGENTS.md 2>/dev/null |
+1. Classify the repository and declare all four boundaries.
+2. Choose one canonical authoring source for every concept.
+3. Remove unconsumed files and relocate maintainer-only material.
+4. Inline small fragments; route genuinely conditional detail to references.
+5. Eliminate tracked replicas when clients can install the canonical payload.
+6. Where replication is required, generate it and test the installed artifact.
+7. Add only the smallest check needed to prevent the observed recurrence.
 
-## Ecosystem Benchmark Detail
-
-Data from 2026-07-01 cold reads via GitHub API:
-
-| Repo | Stars | Skills | Total files | Ref files | Scripts | Per-skill ref ratio | Root items |
-|------|-------|--------|-------------|-----------|---------|--------------------|------------|
-| addyosmani/agent-skills | ~68K | 24 | 137 | 0 | 2 | 0:1 | 19 |
-| cybersecurity-skills | ~23K | 817 | ~3,700 | 1,453 | 22 | 1.8:1 | ~12 |
-| wondelai/skills | ~1.5K | 50 | ~55 | 0 | 0 | 0:1 | 12 |
-| OpenMontage | ~29K | 124 | ~590 | 459 | 22 | 3.7:1 | ~15 |
-| skill-discovery | — | 1 | 12 | 0 | 3 | 0:1 | 7 |
-| py-review-skill | — | 6 | ~25 | 0 | 4 | 0:1 | 8 |
-
-Key takeaways:
-- Zero per-skill refs viable up to at least 24 skills (addyosmani)
-- index.json helps at 800+ scale but unnecessary below ~50
-- Script count should stay under 4 for repos under 25 skills
-- Root items above 12 create namespace crowding
-
-## Remediation Sequence Detail
-
-The six-step fix, derived from 161-to-12 file reduction:
-
-**Step 1 — Declare boundary.** Pick one directory (skills/) as product surface. Everything else is dev tooling.
-
-**Step 2 — Identify what runtimes load.** Walk each SKILL.md. Is references/ referenced from the body? Are scripts called at runtime or only from CI?
-
-**Step 3 — Move dev artifacts.** ADRs go to dev/adr/ or design branch. Review pipeline stays in dev/hq-review/. CI stays in .github/.
-
-**Step 4 — Inline.** If references/ contains a single table or list that fits in SKILL.md body, inline it.
-
-**Step 5 — Verify.** `ls skills/` should clearly communicate what exists. If not, fix naming before adding indexes.
-
-**Step 6 — Add CI gate.** Add one check for the most likely drift surface (portability drift, URL status, or file existence).
+Report counts as evidence, but base findings on ownership, consumers, and failure
+modes rather than a universal ratio.
