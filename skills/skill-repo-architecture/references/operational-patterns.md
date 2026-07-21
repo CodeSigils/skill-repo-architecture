@@ -77,6 +77,8 @@ file presence. Examples:
 
 Pin validation dependencies and CI actions according to the repository's threat
 and reproducibility requirements. Published or security-sensitive projects
-should prefer immutable action revisions and lockfiles. Small static skills can
-use a short exact development-requirements file rather than adding a package
-manifest solely for CI.
+should prefer immutable action revisions and lockfiles. A static skill with one
+trivial check can use a short exact development-requirements file. When several
+maintainer tools share a Python environment, a non-package uv project plus a
+committed lockfile gives deterministic sync and native dependency automation
+without adding a runtime dependency.

@@ -136,6 +136,15 @@ scripts or configuration:
 The payload is authored in place. There is no root reference mirror, generated
 payload, runtime dependency, or synchronization step.
 
+## Security model
+
+The installed artifact is an allowlisted Markdown payload: one `SKILL.md` and
+eight direct references, with no symlinks, executables, nested directories,
+scripts, configuration, or dependencies. Deterministic validation also checks
+for high-confidence secret patterns and unsafe runtime instructions without
+printing matched values. See [SECURITY.md](SECURITY.md) for the trust contract
+and private reporting route.
+
 ## Architecture
 
 ```text
@@ -145,7 +154,11 @@ skill-repo-architecture/
 ├── LICENSE
 ├── README.md
 ├── SECURITY.md
-├── requirements-dev.txt        # exact validation dependencies
+├── pyproject.toml               # non-package maintainer environment
+├── uv.lock                      # exact transitive dependency lock
+├── .github/
+│   ├── dependabot.yml           # uv and action update automation
+│   └── workflows/ci.yml
 ├── docs/
 │   ├── evidence-urls.json       # external monitoring contract
 │   └── portability-contract.md  # compatibility evidence levels and status
@@ -179,27 +192,31 @@ artifact and failure mode exist before recommending the corresponding control.
 
 ## Verify
 
-Create an isolated environment and install the exact development dependencies:
+Sync the isolated maintainer environment from the committed lockfile:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
+uv sync --locked
 ```
+
+`uv` is used instead of raw `pip` because this repository has several Python
+maintainer checks and benefits from a locked transitive environment plus native
+Dependabot updates. It remains maintainer infrastructure; the skill itself has
+no Python or uv runtime dependency.
 
 Run the deterministic suite:
 
 ```bash
-.venv/bin/python scripts/validate.py
-.venv/bin/python scripts/validate.py --self-test
-.venv/bin/python .github/scripts/check-portability.py
-.venv/bin/python -m ruff check scripts .github/scripts
+uv run --locked python scripts/validate.py
+uv run --locked python scripts/validate.py --self-test
+uv run --locked python .github/scripts/check-portability.py
+uv run --locked ruff check scripts .github/scripts
 ```
 
 External URL checks are intentionally separate because they depend on network
 and provider state:
 
 ```bash
-.venv/bin/python scripts/verify-urls.py
+uv run --locked python scripts/verify-urls.py
 ```
 
 CI runs deterministic checks on pull requests and external monitoring only on

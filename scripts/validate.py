@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 
 import yaml
@@ -19,6 +21,12 @@ README = ROOT / "README.md"
 EVAL = ROOT / "evals" / "cases" / "architecture-audit.json"
 EVIDENCE = ROOT / "docs" / "evidence-urls.json"
 PORTABILITY_CONTRACT = ROOT / "docs" / "portability-contract.md"
+SECURITY = ROOT / "SECURITY.md"
+GITIGNORE = ROOT / ".gitignore"
+CI = ROOT / ".github" / "workflows" / "ci.yml"
+DEPENDABOT = ROOT / ".github" / "dependabot.yml"
+PYPROJECT = ROOT / "pyproject.toml"
+UV_LOCK = ROOT / "uv.lock"
 
 ALLOWED_FIELDS = {"name", "description"}
 REQUIRED_SECTIONS = {
@@ -44,6 +52,37 @@ BOUNDARIES = {
 }
 LINK_RE = re.compile(r"(?<!!)\[[^]]+\]\(([^)]+)\)")
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+EXPECTED_REFERENCES = {
+    "dev-workflow-patterns.md",
+    "file-swamp-patterns.md",
+    "npm-publishing-for-agent-skills.md",
+    "operational-patterns.md",
+    "payload-manifest-pattern.md",
+    "portability-migration.md",
+    "portability-patterns.md",
+    "skill-repo-audit-procedure.md",
+}
+SECRET_PATTERNS = (
+    ("private key", re.compile(r"-----BEGIN (?:RSA |OPENSSH |EC |DSA |ENCRYPTED )?PRIVATE KEY-----")),
+    ("GitHub token", re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36,}\b|\bgithub_pat_[A-Za-z0-9_]{40,}\b")),
+    ("AWS access key", re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")),
+    ("OpenAI-style secret", re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b")),
+    ("credential-bearing URL", re.compile(r"https?://[^/\s:@]+:[^/\s@]+@")),
+)
+DANGEROUS_RUNTIME_PATTERNS = (
+    ("destructive Git reset", re.compile(r"\bgit\s+reset\s+--hard\b", re.IGNORECASE)),
+    ("forced Git push", re.compile(r"\bgit\s+push\b[^\n]*(?:--force(?:-with-lease)?|-f\b)", re.IGNORECASE)),
+    ("privilege escalation", re.compile(r"(?:^|[`\s])sudo\s+", re.IGNORECASE | re.MULTILINE)),
+    ("verification bypass", re.compile(r"--no-verify\b|\bbypass(?:ing)?\s+(?:approval|review|checks?)\b", re.IGNORECASE)),
+    (
+        "raw secret-file output",
+        re.compile(r"\b(?:cat|type|get-content)\s+[^\n]*(?:\.env\b|credentials\b|id_rsa\b)", re.IGNORECASE),
+    ),
+    (
+        "raw commit-body output",
+        re.compile(r"\bgit\s+(?:log|show)\b[^\n]*(?:--format=.?%B|--pretty=.?%B)", re.IGNORECASE),
+    ),
+)
 
 
 def fail(message: str) -> None:
@@ -98,6 +137,28 @@ def local_link_errors(path: Path, root: Path) -> list[str]:
     return errors
 
 
+def validate_payload_inventory() -> list[Path]:
+    allowed_files = {SKILL, *(REF_DIR / name for name in EXPECTED_REFERENCES)}
+    allowed_directories = {SKILL_DIR, REF_DIR}
+    observed_files: set[Path] = set()
+    for path in sorted(SKILL_DIR.rglob("*")):
+        if path.is_symlink():
+            fail(f"{path}: symlinks are not allowed in the runtime payload")
+        if path.is_dir():
+            if path not in allowed_directories:
+                fail(f"{path}: unexpected runtime payload directory")
+            continue
+        if path not in allowed_files:
+            fail(f"{path}: unexpected runtime payload file")
+        if path.stat().st_mode & 0o111:
+            fail(f"{path}: executable files are not allowed in the runtime payload")
+        observed_files.add(path)
+    missing = allowed_files - observed_files
+    if missing:
+        fail(f"runtime payload inventory is missing: {[str(path.relative_to(SKILL_DIR)) for path in sorted(missing)]}")
+    return sorted(observed_files)
+
+
 def validate_skill() -> None:
     if not SKILL.exists():
         fail(f"missing canonical runtime entrypoint: {SKILL}")
@@ -109,9 +170,8 @@ def validate_skill() -> None:
     if len(SKILL.read_text(encoding="utf-8").splitlines()) > 500:
         fail(f"{SKILL}: exceeds the 500-line runtime budget")
 
-    references = sorted(REF_DIR.glob("*.md"))
-    if not references:
-        fail(f"{REF_DIR}: no runtime references found")
+    payload_files = validate_payload_inventory()
+    references = [path for path in payload_files if path.parent == REF_DIR]
     for reference in references:
         route = f"references/{reference.name}"
         if route not in body:
@@ -121,6 +181,99 @@ def validate_skill() -> None:
         errors = local_link_errors(path, SKILL_DIR)
         if errors:
             fail("\n".join(errors))
+
+
+def repository_text_files() -> list[Path]:
+    try:
+        output = subprocess.check_output(
+            ["git", "ls-files", "-z"], cwd=ROOT, stderr=subprocess.DEVNULL
+        )
+        paths = [ROOT / item.decode() for item in output.split(b"\0") if item]
+    except (OSError, subprocess.CalledProcessError, UnicodeDecodeError):
+        paths = [
+            path
+            for path in ROOT.rglob("*")
+            if path.is_file() and not {".git", ".venv"}.intersection(path.relative_to(ROOT).parts)
+        ]
+    required = (SECURITY, GITIGNORE, CI, DEPENDABOT, PYPROJECT, UV_LOCK)
+    return sorted({path for path in [*paths, *required] if path.is_file()})
+
+
+def secret_types(text: str) -> list[str]:
+    return [label for label, pattern in SECRET_PATTERNS if pattern.search(text)]
+
+
+def validate_repository_secrets() -> None:
+    findings: list[str] = []
+    for path in repository_text_files():
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        for label in secret_types(text):
+            findings.append(f"{path.relative_to(ROOT)}: {label}")
+    if findings:
+        fail("secret-like material detected (values suppressed):\n" + "\n".join(findings))
+
+
+def validate_runtime_trust() -> None:
+    findings: list[str] = []
+    for path in [SKILL, *(REF_DIR / name for name in sorted(EXPECTED_REFERENCES))]:
+        text = path.read_text(encoding="utf-8")
+        for label, pattern in DANGEROUS_RUNTIME_PATTERNS:
+            if pattern.search(text):
+                findings.append(f"{path.relative_to(ROOT)}: {label}")
+    if findings:
+        fail("unsafe runtime instruction detected:\n" + "\n".join(findings))
+
+
+def validate_security_contract() -> None:
+    text = SECURITY.read_text(encoding="utf-8")
+    required = (
+        "## Supported Versions",
+        "## Reporting a Vulnerability",
+        "/security/advisories/new",
+        "## Repository Security Scope",
+        "## Shipped Payload Inventory",
+        "## Runtime Trust Guarantees",
+        "## Sensitive Evidence",
+        "## Maintainer Security Checklist",
+        "Last reviewed:",
+    )
+    for phrase in required:
+        if phrase not in text:
+            fail(f"{SECURITY}: missing {phrase!r}")
+
+    ignored = set(GITIGNORE.read_text(encoding="utf-8").splitlines())
+    for rule in (".env", ".env.*", "!.env.example", "!.env.*.example"):
+        if rule not in ignored:
+            fail(f"{GITIGNORE}: missing local-secret rule {rule!r}")
+
+    workflow = CI.read_text(encoding="utf-8")
+    if workflow.count("persist-credentials: false") < 2:
+        fail(f"{CI}: every checkout must disable persisted credentials")
+    if workflow.count("timeout-minutes:") < 2 or "permissions:\n  contents: read" not in workflow:
+        fail(f"{CI}: jobs need timeouts and read-only repository permissions")
+
+    dependabot = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))
+    if not isinstance(dependabot, dict) or not isinstance(dependabot.get("updates"), list):
+        fail(f"{DEPENDABOT}: updates must be a list")
+    if not all(isinstance(entry, dict) for entry in dependabot["updates"]):
+        fail(f"{DEPENDABOT}: every update must be a mapping")
+    ecosystems = {entry.get("package-ecosystem") for entry in dependabot["updates"]}
+    if ecosystems != {"github-actions", "uv"}:
+        fail(f"{DEPENDABOT}: must monitor github-actions and uv")
+
+
+def validate_maintainer_environment() -> None:
+    project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    dependencies = set(project.get("dependency-groups", {}).get("dev", []))
+    if dependencies != {"pyyaml==6.0.3", "ruff==0.15.21"}:
+        fail(f"{PYPROJECT}: dev dependencies must be exactly pinned")
+    if project.get("tool", {}).get("uv", {}).get("package") is not False:
+        fail(f"{PYPROJECT}: maintainer environment must be a non-package uv project")
+    if not UV_LOCK.is_file():
+        fail(f"{UV_LOCK}: committed uv lockfile is required")
 
 
 def validate_readme() -> None:
@@ -136,6 +289,8 @@ def validate_readme() -> None:
         "skills/skill-repo-architecture/",
         "evals/cases/architecture-audit.json",
         "docs/portability-contract.md",
+        "uv sync --locked",
+        "SECURITY.md",
     )
     for phrase in required:
         if phrase not in text:
@@ -256,6 +411,11 @@ def self_test() -> None:
         pass
     else:
         raise AssertionError("invalid skill names must fail")
+    synthetic_token = "ghp_" + ("a" * 36)
+    assert secret_types(synthetic_token) == ["GitHub token"]
+    assert not secret_types("tokens should be redacted")
+    assert DANGEROUS_RUNTIME_PATTERNS[0][1].search("git reset --hard")
+    assert DANGEROUS_RUNTIME_PATTERNS[4][1].search("cat .env")
     print("PASS: validator self-tests")
 
 
@@ -265,11 +425,15 @@ def main() -> int:
             self_test()
         else:
             validate_skill()
+            validate_runtime_trust()
             validate_readme()
             validate_eval()
             validate_portability_contract()
             validate_evidence_sources()
-            print("PASS: canonical payload, docs, links, and behavioral contract")
+            validate_security_contract()
+            validate_maintainer_environment()
+            validate_repository_secrets()
+            print("PASS: payload, docs, behavior, security, and maintainer environment")
     except (AssertionError, ValueError) as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1

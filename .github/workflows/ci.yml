@@ -15,7 +15,8 @@ on:
       - "SECURITY.md"
       - "docs/**"
       - "evals/**"
-      - "requirements-dev.txt"
+      - "pyproject.toml"
+      - "uv.lock"
       - "scripts/**"
       - "skills/**"
   pull_request:
@@ -29,7 +30,8 @@ on:
       - "SECURITY.md"
       - "docs/**"
       - "evals/**"
-      - "requirements-dev.txt"
+      - "pyproject.toml"
+      - "uv.lock"
       - "scripts/**"
       - "skills/**"
 
@@ -44,29 +46,37 @@ jobs:
   deterministic:
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.30"
           python-version: "3.13"
-          cache: pip
-      - run: python3 -m pip install -r requirements-dev.txt
+          enable-cache: true
+      - name: Sync locked maintainer environment
+        run: uv sync --locked
       - name: Validate canonical payload and behavioral contract
-        run: python3 scripts/validate.py
+        run: uv run --locked python scripts/validate.py
       - name: Run validator self-tests
-        run: python3 scripts/validate.py --self-test
+        run: uv run --locked python scripts/validate.py --self-test
       - name: Check cross-agent portability
-        run: python3 .github/scripts/check-portability.py
+        run: uv run --locked python .github/scripts/check-portability.py
       - name: Run URL verifier self-tests
-        run: python3 scripts/verify-urls.py --self-test
+        run: uv run --locked python scripts/verify-urls.py --self-test
       - name: Lint maintainer scripts
-        run: python3 -m ruff check scripts .github/scripts
+        run: uv run --locked ruff check scripts .github/scripts
 
   monitor-external-contracts:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.13"
