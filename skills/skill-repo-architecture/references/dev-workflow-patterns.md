@@ -10,6 +10,14 @@ that directory during development. Direct discovery eliminates installed-copy
 staleness, but exposes uncommitted changes; use a dedicated clone or stable
 branch for production sessions.
 
+Treat every discovered directory as a trust boundary. Before pointing a client
+at canonical source, inspect its owner, group, permissions, and the client's
+ability to write, update, or uninstall content there. A writable external skill
+directory can let a client or its maintenance commands mutate the authoring
+source. Use direct discovery only for development unless the source is protected
+against unintended writes; otherwise install a reviewed copy and record who
+owns updates.
+
 Manual installation creates a separate drift class from generated-payload drift:
 
 | Drift                    | Cause                                               | Remedy                             |
@@ -57,6 +65,11 @@ required client API does.
 Test commands against the actual tracked layout and name the produced artifact.
 For several distribution paths, maintain one inventory per artifact rather than
 one ambiguous global file list.
+
+Client-specific metadata, hooks, or dynamic commands belong in a thin adapter,
+not the portable core. Review such adapters as executable or privileged input:
+identify commands, network access, writable paths, credentials, and approval
+behavior before enabling them.
 
 ## Change-admission questions
 

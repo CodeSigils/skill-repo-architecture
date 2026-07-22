@@ -27,6 +27,8 @@ CI = ROOT / ".github" / "workflows" / "ci.yml"
 DEPENDABOT = ROOT / ".github" / "dependabot.yml"
 PYPROJECT = ROOT / "pyproject.toml"
 UV_LOCK = ROOT / "uv.lock"
+PAYLOAD_LICENSE = SKILL_DIR / "LICENSE.txt"
+ROOT_LICENSE = ROOT / "LICENSE"
 
 ALLOWED_FIELDS = {"name", "description"}
 REQUIRED_SECTIONS = {
@@ -73,7 +75,10 @@ DANGEROUS_RUNTIME_PATTERNS = (
     ("destructive Git reset", re.compile(r"\bgit\s+reset\s+--hard\b", re.IGNORECASE)),
     ("forced Git push", re.compile(r"\bgit\s+push\b[^\n]*(?:--force(?:-with-lease)?|-f\b)", re.IGNORECASE)),
     ("privilege escalation", re.compile(r"(?:^|[`\s])sudo\s+", re.IGNORECASE | re.MULTILINE)),
-    ("verification bypass", re.compile(r"--no-verify\b|\bbypass(?:ing)?\s+(?:approval|review|checks?)\b", re.IGNORECASE)),
+    (
+        "verification bypass",
+        re.compile(r"--no-verify\b|\bbypass(?:ing)?\s+(?:approval|review|checks?)\b", re.IGNORECASE),
+    ),
     (
         "raw secret-file output",
         re.compile(r"\b(?:cat|type|get-content)\s+[^\n]*(?:\.env\b|credentials\b|id_rsa\b)", re.IGNORECASE),
@@ -138,7 +143,7 @@ def local_link_errors(path: Path, root: Path) -> list[str]:
 
 
 def validate_payload_inventory() -> list[Path]:
-    allowed_files = {SKILL, *(REF_DIR / name for name in EXPECTED_REFERENCES)}
+    allowed_files = {SKILL, PAYLOAD_LICENSE, *(REF_DIR / name for name in EXPECTED_REFERENCES)}
     allowed_directories = {SKILL_DIR, REF_DIR}
     observed_files: set[Path] = set()
     for path in sorted(SKILL_DIR.rglob("*")):
@@ -156,6 +161,8 @@ def validate_payload_inventory() -> list[Path]:
     missing = allowed_files - observed_files
     if missing:
         fail(f"runtime payload inventory is missing: {[str(path.relative_to(SKILL_DIR)) for path in sorted(missing)]}")
+    if PAYLOAD_LICENSE.read_text(encoding="utf-8") != ROOT_LICENSE.read_text(encoding="utf-8"):
+        fail(f"{PAYLOAD_LICENSE}: must match the repository LICENSE exactly")
     return sorted(observed_files)
 
 
@@ -185,9 +192,7 @@ def validate_skill() -> None:
 
 def repository_text_files() -> list[Path]:
     try:
-        output = subprocess.check_output(
-            ["git", "ls-files", "-z"], cwd=ROOT, stderr=subprocess.DEVNULL
-        )
+        output = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT, stderr=subprocess.DEVNULL)
         paths = [ROOT / item.decode() for item in output.split(b"\0") if item]
     except (OSError, subprocess.CalledProcessError, UnicodeDecodeError):
         paths = [
@@ -267,9 +272,27 @@ def validate_security_contract() -> None:
 
 def validate_maintainer_environment() -> None:
     project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
-    dependencies = set(project.get("dependency-groups", {}).get("dev", []))
-    if dependencies != {"pyyaml==6.0.3", "ruff==0.15.21"}:
-        fail(f"{PYPROJECT}: dev dependencies must be exactly pinned")
+    dependencies = project.get("dependency-groups", {}).get("dev", [])
+    pins: dict[str, str] = {}
+    for dependency in dependencies:
+        match = re.fullmatch(
+            r"(pyyaml|ruff)==([0-9]+(?:\.[0-9]+)+(?:[A-Za-z0-9.+-]*))",
+            dependency,
+        )
+        if match is None or match.group(1) in pins:
+            fail(f"{PYPROJECT}: dev dependencies must be unique exact pins")
+        pins[match.group(1)] = match.group(2)
+    if set(pins) != {"pyyaml", "ruff"}:
+        fail(f"{PYPROJECT}: dev dependencies must be exactly pyyaml and ruff")
+
+    lock = tomllib.loads(UV_LOCK.read_text(encoding="utf-8"))
+    locked_versions = {
+        package["name"]: package["version"]
+        for package in lock.get("package", [])
+        if package.get("name") in pins and "version" in package
+    }
+    if locked_versions != pins:
+        fail(f"{UV_LOCK}: locked dev dependency versions must match {PYPROJECT}")
     if project.get("tool", {}).get("uv", {}).get("package") is not False:
         fail(f"{PYPROJECT}: maintainer environment must be a non-package uv project")
     if not UV_LOCK.is_file():
@@ -348,6 +371,9 @@ def validate_eval() -> None:
     required_fixtures = {
         "portable-payload-without-runtime-certification",
         "audit-with-secret-like-evidence",
+        "shared-core-with-client-discovery-adapters",
+        "writable-external-skill-directory",
+        "client-extension-isolated-in-adapter",
     }
     if not required_fixtures <= seen:
         fail(f"{EVAL}: required evidence fixtures missing: {sorted(required_fixtures - seen)}")

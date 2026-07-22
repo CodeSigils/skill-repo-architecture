@@ -81,6 +81,19 @@ cp -R skills/skill-repo-architecture <your-skills-directory>/
 For development, point clients that support external skill directories at this
 repository's `skills/` directory so edits are immediately visible.
 
+Documented candidate paths are installation hints, not support claims:
+
+| Client | Candidate path or mechanism |
+| --- | --- |
+| OpenAI Codex CLI | project `.agents/skills/` |
+| Gemini CLI | project `.agents/skills/` |
+| Claude Code | project `.claude/skills/` |
+| Hermes Agent | copy under `$HERMES_HOME/skills/` or configure `skills.external_dirs` |
+
+An external directory or symlink is a development adapter and a trust boundary.
+Check ownership, permissions, targets, and whether the client can mutate the
+canonical source before enabling it.
+
 Client discovery locations change independently of the payload format. Verify
 the named client's current documentation and record its version and installation
 result before claiming support.
@@ -89,13 +102,19 @@ result before claiming support.
 
 Deterministic checks establish that the canonical payload has valid baseline
 frontmatter, resolvable references, and no known platform-only runtime markers.
-That supports a **payload-portable candidate** claim only.
+Named-runtime claims are narrower:
 
-No named runtime and version has yet received recorded installation plus positive
-and negative workflow certification for this payload revision. The current
-runtime status is therefore `candidate`, not “compatible” or “workflow verified.”
-See [the portability contract](docs/portability-contract.md) for evidence levels
-and certification requirements.
+| Runtime | Tested version | Status |
+| --- | --- | --- |
+| OpenAI Codex CLI | 0.133.0 | `workflow_verified` |
+| Hermes Agent | 0.19.0 | `workflow_verified` with a recorded shutdown-warning limitation |
+| Claude Code | 2.1.159 | `candidate`; certification was inconclusive |
+| Gemini CLI | not installed | `candidate` |
+
+See [the portability contract](docs/portability-contract.md) and
+[dated compatibility report](docs/compatibility/2026-07-22.md) for evidence,
+prompts, grading, and limitations. These results do not imply universal or
+future-version compatibility.
 
 ## Use
 
@@ -119,8 +138,8 @@ The reviewable behavior contract lives in
 ## Runtime payload
 
 Only [`skills/skill-repo-architecture/`](skills/skill-repo-architecture/) ships.
-It contains one `SKILL.md`, eight conditionally loaded references, and no runtime
-scripts or configuration:
+It contains one `SKILL.md`, eight conditionally loaded references, the bundled
+MIT `LICENSE.txt`, and no runtime scripts or configuration:
 
 | Reference                            | Load when                                                   |
 | ------------------------------------ | ----------------------------------------------------------- |
@@ -138,8 +157,8 @@ payload, runtime dependency, or synchronization step.
 
 ## Security model
 
-The installed artifact is an allowlisted Markdown payload: one `SKILL.md` and
-eight direct references, with no symlinks, executables, nested directories,
+The installed artifact is an allowlisted payload: one `SKILL.md`, eight direct
+references, and its MIT notice, with no symlinks, executables, nested directories,
 scripts, configuration, or dependencies. Deterministic validation also checks
 for high-confidence secret patterns and unsafe runtime instructions without
 printing matched values. See [SECURITY.md](SECURITY.md) for the trust contract
@@ -161,7 +180,9 @@ skill-repo-architecture/
 │   └── workflows/ci.yml
 ├── docs/
 │   ├── evidence-urls.json       # external monitoring contract
-│   └── portability-contract.md  # compatibility evidence levels and status
+│   ├── compatibility/           # named-runtime reports; not shipped
+│   ├── portability-contract.md  # compatibility evidence levels and status
+│   └── research/                # dated maintainer evidence; not shipped
 ├── evals/
 │   └── cases/
 │       └── architecture-audit.json
@@ -171,6 +192,7 @@ skill-repo-architecture/
 └── skills/
     └── skill-repo-architecture/ # canonical runtime payload
         ├── SKILL.md
+        ├── LICENSE.txt
         └── references/
 ```
 
@@ -189,6 +211,19 @@ evidence contracts, and repository documentation are maintainer infrastructure.
 
 These are transfer patterns, not templates. The skill asks whether the same
 artifact and failure mode exist before recommending the corresponding control.
+
+## Research provenance
+
+Maintainer research is preserved as dated evidence, not runtime authority:
+
+- [repository structure snapshot](docs/research/repository-structure-snapshot.md)
+  records four public repositories at pinned Git tree objects;
+- [platform skill support snapshot](docs/research/platform-skill-support-snapshot.md)
+  compares current official Agent Skills, Codex, Claude Code, Gemini CLI, and
+  Hermes documentation.
+
+Refresh volatile claims before using them to change compatibility status or
+runtime guidance.
 
 ## Verify
 

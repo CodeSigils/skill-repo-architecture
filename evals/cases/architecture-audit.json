@@ -184,6 +184,73 @@
         "required_recommendations": ["transfer only artifact practices supported by an equivalent skill artifact"],
         "prohibited_recommendations": ["require release provenance for every Markdown-only skill"]
       }
+    },
+    {
+      "name": "shared-core-with-client-discovery-adapters",
+      "observed": {
+        "entrypoints": ["skills/example/SKILL.md"],
+        "runtime_code": false,
+        "independent_skills": 1,
+        "external_contracts": true,
+        "published_artifacts": [],
+        "discovery_paths": [".agents/skills", ".claude/skills"]
+      },
+      "expected": {
+        "archetype": "markdown-only-skill",
+        "boundaries": {
+          "authoring_source": "one canonical portable skill directory",
+          "runtime_payload": "the same portable Markdown core",
+          "install_artifact": "thin client discovery adapters pointing to the core",
+          "maintainer_infrastructure": "runtime evidence and adapter checks"
+        },
+        "required_recommendations": ["keep one portable core and document each client discovery adapter"],
+        "prohibited_recommendations": ["duplicate runtime prose across .agents and .claude trees"]
+      }
+    },
+    {
+      "name": "writable-external-skill-directory",
+      "observed": {
+        "entrypoints": ["skills/example/SKILL.md"],
+        "runtime_code": false,
+        "independent_skills": 1,
+        "external_contracts": true,
+        "published_artifacts": [],
+        "external_directory": "canonical repository source",
+        "client_can_write": true
+      },
+      "expected": {
+        "archetype": "markdown-only-skill",
+        "boundaries": {
+          "authoring_source": "writable canonical repository source",
+          "runtime_payload": "skill discovered from that source",
+          "install_artifact": "external-directory registration",
+          "maintainer_infrastructure": "permission and mutation-boundary review"
+        },
+        "required_recommendations": ["inspect ownership and client mutation rights before direct discovery"],
+        "prohibited_recommendations": ["treat a writable external directory as an inherently read-only adapter"]
+      }
+    },
+    {
+      "name": "client-extension-isolated-in-adapter",
+      "observed": {
+        "entrypoints": ["skills/example/SKILL.md"],
+        "runtime_code": false,
+        "independent_skills": 1,
+        "external_contracts": true,
+        "published_artifacts": [],
+        "client_adapter": "platform metadata with a dynamic command"
+      },
+      "expected": {
+        "archetype": "markdown-only-skill",
+        "boundaries": {
+          "authoring_source": "portable skill plus client adapter",
+          "runtime_payload": "portable instructions and separately reviewed adapter command",
+          "install_artifact": "client-specific adapter pointing to the portable core",
+          "maintainer_infrastructure": "adapter security review and runtime evidence"
+        },
+        "required_recommendations": ["isolate client metadata and commands and review their permissions"],
+        "prohibited_recommendations": ["embed a platform-only dynamic command in the portable core"]
+      }
     }
   ]
 }

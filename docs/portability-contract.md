@@ -34,9 +34,17 @@ evidence baseline.
 ## Current status
 
 The canonical payload passes deterministic format, frontmatter, reference,
-portability-marker, and behavioral-contract validation. No named runtime has a
-recorded installation and positive/negative workflow certification for this
-payload revision. Current runtime status is therefore `candidate`.
+portability-marker, and behavioral-contract validation.
+
+| Runtime | Version | Status |
+| --- | --- | --- |
+| OpenAI Codex CLI | 0.133.0 | `workflow_verified` |
+| Hermes Agent | 0.19.0 | `workflow_verified` with a post-response shutdown-warning limitation |
+| Claude Code | 2.1.159 | `candidate`; discovery and behavior were inconclusive |
+| Gemini CLI | not installed | `candidate` |
+
+The dated procedure, prompts, grading, and limitations are recorded in
+[the 2026-07-22 compatibility report](compatibility/2026-07-22.md).
 
 ## Adding runtime evidence
 

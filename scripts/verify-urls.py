@@ -32,6 +32,7 @@ MANIFEST_PATH = ROOT / "docs" / "evidence-urls.json"
 @dataclass(frozen=True)
 class UrlCheckResult:
     """Result of a single URL check."""
+
     status: int | str
     redirects: int
     content: str | None
@@ -63,12 +64,28 @@ def validate_entry(entry: dict[str, Any]) -> None:
     for status in entry["expected_statuses"]:
         if not isinstance(status, int):
             raise ValueError("expected_statuses must contain integers")
+    if "monitor" in entry and not isinstance(entry["monitor"], bool):
+        raise ValueError("monitor must be a boolean")
+    required_text = entry.get("required_text", [])
+    if not isinstance(required_text, list) or not all(isinstance(anchor, str) and anchor for anchor in required_text):
+        raise ValueError("required_text must be a list of non-empty strings")
 
 
-def check_url(url: str, content_type: str | None = None) -> UrlCheckResult:
+def check_required_text(body: str, required_text: list[str]) -> str:
+    """Return a body-validation label without exposing response content."""
+    if any(anchor not in body for anchor in required_text):
+        return "MISSING_ANCHOR"
+    return "ANCHORS_OK"
+
+
+def check_url(
+    url: str,
+    content_type: str | None = None,
+    required_text: list[str] | None = None,
+) -> UrlCheckResult:
     """Return UrlCheckResult for one URL.
 
-    When content_type is "json", captures response body and validates JSON.
+    Read response bodies only when JSON or semantic anchors need validation.
     """
     request = urllib.request.Request(
         url,
@@ -79,15 +96,21 @@ def check_url(url: str, content_type: str | None = None) -> UrlCheckResult:
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
             status = response.status
-            redirect_count = len(response.headers.get("Location", "").split("\n")) if "Location" in response.headers else 0
+            redirect_count = (
+                len(response.headers.get("Location", "").split("\n")) if "Location" in response.headers else 0
+            )
 
-            if content_type == "json":
+            if content_type == "json" or required_text:
                 body = response.read().decode("utf-8")
+            if content_type == "json":
                 try:
                     json.loads(body)
-                    return UrlCheckResult(status, redirect_count, "VALID")
                 except (json.JSONDecodeError, ValueError):
                     return UrlCheckResult(status, redirect_count, "INVALID_JSON")
+            if required_text:
+                return UrlCheckResult(status, redirect_count, check_required_text(body, required_text))
+            if content_type == "json":
+                return UrlCheckResult(status, redirect_count, "VALID")
             return UrlCheckResult(status, redirect_count, None)
 
     except urllib.error.HTTPError as exc:
@@ -116,6 +139,9 @@ def check_self_test() -> None:
     assert classify_status(200, [200, 201]) == "OK"
     assert classify_status(201, [200, 201]) == "OK"
     print("  PASS  classify_status")
+    assert check_required_text("alpha beta", ["alpha", "beta"]) == "ANCHORS_OK"
+    assert check_required_text("alpha beta", ["gamma"]) == "MISSING_ANCHOR"
+    print("  PASS  check_required_text")
 
     # Test validate_entry
     try:
@@ -142,6 +168,21 @@ def check_self_test() -> None:
     except ValueError:
         print("  PASS  validate_entry non-int status")
 
+    for invalid in ({"monitor": "false"}, {"required_text": [""]}):
+        try:
+            validate_entry(
+                {
+                    "name": "test",
+                    "url": "https://example.com",
+                    "expected_statuses": [200],
+                    **invalid,
+                }
+            )
+            assert False, "should have failed"
+        except ValueError:
+            pass
+    print("  PASS  validate_entry semantic fields")
+
     print("  PASS  verify-urls.py self-tests")
 
 
@@ -165,8 +206,12 @@ def main() -> int:
             drift_found = True
             continue
 
+        if entry.get("monitor", True) is False:
+            print(f"  {entry['name']:<30s} {'—':<8s} {'immutable':<12s} {'—':<9s} {'—':<12s} SKIPPED")
+            continue
+
         content_type = entry.get("content_type")
-        result = check_url(entry["url"], content_type)
+        result = check_url(entry["url"], content_type, entry.get("required_text"))
         expected = entry["expected_statuses"]
         note = classify_status(result.status, expected)
         if note == "DRIFT":
@@ -174,7 +219,7 @@ def main() -> int:
 
         # Content check trumps status check for JSON endpoints
         content_label = result.content or "—"
-        if content_type == "json" and result.content == "INVALID_JSON":
+        if result.content in {"INVALID_JSON", "MISSING_ANCHOR"}:
             note = "BROKEN"
             drift_found = True
 

@@ -160,6 +160,8 @@ transfer question and evidence scope, not only the originating anecdote.
 - [ ] Portability and compatibility claims match their recorded evidence level.
 - [ ] Deterministic validation and volatile monitoring are separated.
 - [ ] Decision-heavy behavior has representative positive and negative fixtures.
+- [ ] Discovery paths have reviewed ownership, permissions, symlink, and write boundaries.
+- [ ] Client-specific metadata or commands are isolated and security-reviewed.
 - [ ] Sensitive evidence is reported without exposing matched values.
 - [ ] Install instructions match the actual artifact layout.
 - [ ] Checks were run or skipped with exact reasons.
