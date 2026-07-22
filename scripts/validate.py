@@ -272,9 +272,27 @@ def validate_security_contract() -> None:
 
 def validate_maintainer_environment() -> None:
     project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
-    dependencies = set(project.get("dependency-groups", {}).get("dev", []))
-    if dependencies != {"pyyaml==6.0.3", "ruff==0.15.21"}:
-        fail(f"{PYPROJECT}: dev dependencies must be exactly pinned")
+    dependencies = project.get("dependency-groups", {}).get("dev", [])
+    pins: dict[str, str] = {}
+    for dependency in dependencies:
+        match = re.fullmatch(
+            r"(pyyaml|ruff)==([0-9]+(?:\.[0-9]+)+(?:[A-Za-z0-9.+-]*))",
+            dependency,
+        )
+        if match is None or match.group(1) in pins:
+            fail(f"{PYPROJECT}: dev dependencies must be unique exact pins")
+        pins[match.group(1)] = match.group(2)
+    if set(pins) != {"pyyaml", "ruff"}:
+        fail(f"{PYPROJECT}: dev dependencies must be exactly pyyaml and ruff")
+
+    lock = tomllib.loads(UV_LOCK.read_text(encoding="utf-8"))
+    locked_versions = {
+        package["name"]: package["version"]
+        for package in lock.get("package", [])
+        if package.get("name") in pins and "version" in package
+    }
+    if locked_versions != pins:
+        fail(f"{UV_LOCK}: locked dev dependency versions must match {PYPROJECT}")
     if project.get("tool", {}).get("uv", {}).get("package") is not False:
         fail(f"{PYPROJECT}: maintainer environment must be a non-package uv project")
     if not UV_LOCK.is_file():
