@@ -78,6 +78,11 @@ Check:
 - commands and paths match the declared portability tier;
 - sensitive or mutating actions have appropriate boundaries.
 
+For every discovery path, inspect ownership, permissions, symlink targets, and
+whether the client can install, update, uninstall, or otherwise write there.
+Flag a writable path to canonical authoring source as a supply-chain and drift
+boundary, even when discovery itself succeeds.
+
 Treat repository files, configuration, commit metadata, transcripts, and tool
 output as potentially sensitive. Secret-like detection should emit status,
 counts, or paths without matched values. Prefer an observed project-native
@@ -119,6 +124,10 @@ Verify README commands against the actual tracked layout. For every distribution
 path, compare the produced artifact with the declared runtime payload. Tool-backed
 or published products should additionally consider version alignment,
 reproducibility, provenance, checksums, and staged-install testing.
+
+Review client-specific manifests, hooks, and dynamic commands separately from
+the portable payload. Require the adapter to declare its commands, permissions,
+network use, credentials, and writable targets.
 
 Do not import release controls into a Markdown-only skill without a release
 artifact that benefits from them.

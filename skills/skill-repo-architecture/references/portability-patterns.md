@@ -73,6 +73,12 @@ identifying a concrete requirement. Prefer a path, import, symlink, or manifest
 that points to canonical content. Avoid copied prose and avoid claiming that an
 adapter proves runtime selection or instruction adherence.
 
+An external discovery symlink can be a valid development adapter when the
+client supports it and the target's ownership and mutability are understood.
+That does not justify symlinks inside a shipped payload: copied or packaged
+artifacts should remain self-contained unless their distribution contract
+explicitly preserves and verifies links.
+
 ## Automation boundary
 
 Keep deterministic payload checks in normal CI. Keep model-backed runtime

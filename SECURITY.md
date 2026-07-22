@@ -30,6 +30,7 @@ The install artifact is exactly `skills/skill-repo-architecture/` with:
 
 - one `SKILL.md`;
 - eight Markdown files directly under `references/`;
+- one `LICENSE.txt` containing the MIT notice that must travel with copies;
 - no symlinks, executable files, nested directories, runtime scripts,
   configuration, dependency manifests, or generated files.
 
@@ -40,6 +41,9 @@ infrastructure and must not be copied into the installed payload.
 ## Runtime Trust Guarantees
 
 - The installed payload is declarative Markdown and cannot execute by itself.
+- Discovery paths are separate trust boundaries. Review their ownership,
+  permissions, symlink targets, and client write behavior before connecting
+  them to canonical source.
 - The methodology defaults to inspection and recommendations; it does not grant
   permission for destructive Git operations, privilege escalation, approval
   bypass, publication, or credential access.
@@ -68,7 +72,8 @@ Before merging a payload or tooling change:
 
 1. Run `uv sync --locked` and the deterministic verification suite in the
    README.
-2. Confirm the payload inventory contains only the declared Markdown files.
+2. Confirm the payload inventory contains only the declared Markdown files and
+   bundled license notice.
 3. Review runtime instructions for destructive commands, privilege escalation,
    approval bypass, and sensitive-output requests.
 4. Review dependency and GitHub Action updates; keep the uv lockfile and action
