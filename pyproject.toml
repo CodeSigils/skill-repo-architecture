@@ -1,7 +1,7 @@
 [project]
-name = "skill-repo-architecture-maintenance"
+name = "repo-architecture-skill-maintenance"
 version = "0.0.0"
-description = "Maintainer tooling for the skill-repo-architecture repository"
+description = "Maintainer tooling for the repo-architecture-skill repository"
 requires-python = ">=3.13"
 dependencies = []
 

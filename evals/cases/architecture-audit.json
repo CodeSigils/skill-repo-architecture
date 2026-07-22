@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "skill_name": "skill-repo-architecture",
+  "skill_name": "repo-architecture-skill",
   "trigger": {
     "positive": [
       "Design the repository layout for a portable agent skill",

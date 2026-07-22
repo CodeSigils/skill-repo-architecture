@@ -1,9 +1,9 @@
 ---
-name: skill-repo-architecture
+name: repo-architecture-skill
 description: Design, review, and tighten agent skill repositories. Use when creating or auditing a skill repo, choosing between a single skill, skill pack, tool-backed skill, operational skill, or distribution monorepo, defining source and shipping boundaries, reducing file-swamp, selecting portability and release controls, or adding proportionate validation and behavioral evaluation.
 ---
 
-# Skill Repo Architecture
+# Repo Architecture Skill
 
 Design or audit a skill repository by classifying what it ships before applying
 structural rules. Prefer a compact runtime procedure with conditional references.

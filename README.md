@@ -1,7 +1,7 @@
-# Skill Repo Architecture
+# Repo Architecture Skill
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![CI](https://github.com/CodeSigils/skill-repo-architecture/actions/workflows/ci.yml/badge.svg)](https://github.com/CodeSigils/skill-repo-architecture/actions/workflows/ci.yml)
+[![CI](https://github.com/CodeSigils/repo-architecture-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/CodeSigils/repo-architecture-skill/actions/workflows/ci.yml)
 [![Skill format](https://img.shields.io/badge/skill%20format-agentskills.io-blue)](https://agentskills.io/specification)
 
 **Architecture follows the artifact.** This methodology helps an agent design,
@@ -68,14 +68,14 @@ decisions.
 ## Install
 
 The canonical payload is
-[`skills/skill-repo-architecture/`](skills/skill-repo-architecture/). There is no
+[`skills/repo-architecture-skill/`](skills/repo-architecture-skill/). There is no
 build or generated mirror.
 
 The generic installation shape is to copy that directory into a client-supported
 skill location:
 
 ```bash
-cp -R skills/skill-repo-architecture <your-skills-directory>/
+cp -R skills/repo-architecture-skill <your-skills-directory>/
 ```
 
 For development, point clients that support external skill directories at this
@@ -118,7 +118,7 @@ future-version compatibility.
 
 ## Use
 
-1. Make `skill-repo-architecture` discoverable to the agent.
+1. Make `repo-architecture-skill` discoverable to the agent.
 2. Ask it to design or audit a skill repository, naming any active distribution
    targets or portability requirements.
 3. Expect an archetype classification, four-boundary map, artifact-specific
@@ -137,7 +137,7 @@ The reviewable behavior contract lives in
 
 ## Runtime payload
 
-Only [`skills/skill-repo-architecture/`](skills/skill-repo-architecture/) ships.
+Only [`skills/repo-architecture-skill/`](skills/repo-architecture-skill/) ships.
 It contains one `SKILL.md`, eight conditionally loaded references, the bundled
 MIT `LICENSE.txt`, and no runtime scripts or configuration:
 
@@ -167,7 +167,7 @@ and private reporting route.
 ## Architecture
 
 ```text
-skill-repo-architecture/
+repo-architecture-skill/
 ├── AGENTS.md                    # maintainer routing; not shipped
 ├── CITATION.cff
 ├── LICENSE
@@ -190,7 +190,7 @@ skill-repo-architecture/
 │   ├── validate.py              # deterministic schema/link/fixture checks
 │   └── verify-urls.py           # scheduled external monitoring
 └── skills/
-    └── skill-repo-architecture/ # canonical runtime payload
+    └── repo-architecture-skill/ # canonical runtime payload
         ├── SKILL.md
         ├── LICENSE.txt
         └── references/
@@ -260,7 +260,7 @@ non-blocking certification activity.
 
 ## Maintainer ownership
 
-- `skills/skill-repo-architecture/SKILL.md` owns runtime procedure and triggers.
+- `skills/repo-architecture-skill/SKILL.md` owns runtime procedure and triggers.
 - Runtime references own conditional detail and examples.
 - `evals/` owns intended classification and recommendation behavior.
 - `README.md` owns installation, repository layout, and verification commands.

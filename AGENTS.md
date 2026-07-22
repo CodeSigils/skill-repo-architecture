@@ -3,7 +3,7 @@
 > Scope: maintainer routing only. This file is not part of the runtime payload.
 
 This repository ships one portable skill from
-`skills/skill-repo-architecture/`; that directory is both canonical source and
+`skills/repo-architecture-skill/`; that directory is both canonical source and
 installable payload.
 
 - Use `SKILL.md` for runtime triggers and procedure.

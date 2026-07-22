@@ -5,7 +5,7 @@ payload.
 
 ## Canonical payload
 
-`skills/skill-repo-architecture/` is the sole runtime source and installable
+`skills/repo-architecture-skill/` is the sole runtime source and installable
 artifact. Adapters may point at it or add required metadata, but must not copy
 its methodology.
 

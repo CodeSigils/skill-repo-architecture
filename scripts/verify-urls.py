@@ -90,7 +90,7 @@ def check_url(
     request = urllib.request.Request(
         url,
         method="GET",
-        headers={"User-Agent": "skill-repo-architecture-url-verify"},
+        headers={"User-Agent": "repo-architecture-skill-url-verify"},
     )
 
     try:

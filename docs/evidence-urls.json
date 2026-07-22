@@ -11,8 +11,8 @@
       "notes": "Official agentskills.io specification"
     },
     {
-      "name": "GitHub CodeSigils skill-repo-architecture",
-      "url": "https://github.com/CodeSigils/skill-repo-architecture",
+      "name": "GitHub CodeSigils repo-architecture-skill",
+      "url": "https://github.com/CodeSigils/repo-architecture-skill",
       "expected_statuses": [200],
       "source_section": "README.md",
       "notes": "Source repository for this skill"

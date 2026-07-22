@@ -14,7 +14,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILL_DIR = ROOT / "skills" / "skill-repo-architecture"
+SKILL_DIR = ROOT / "skills" / "repo-architecture-skill"
 SKILL = SKILL_DIR / "SKILL.md"
 REF_DIR = SKILL_DIR / "references"
 README = ROOT / "README.md"
@@ -259,6 +259,11 @@ def validate_security_contract() -> None:
         fail(f"{CI}: every checkout must disable persisted credentials")
     if workflow.count("timeout-minutes:") < 2 or "permissions:\n  contents: read" not in workflow:
         fail(f"{CI}: jobs need timeouts and read-only repository permissions")
+    if (
+        'env:\n  PYTHON_VERSION: "3.13"' not in workflow
+        or workflow.count("python-version: ${{ env.PYTHON_VERSION }}") != 2
+    ):
+        fail(f"{CI}: both jobs must use the shared Python version")
 
     dependabot = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))
     if not isinstance(dependabot, dict) or not isinstance(dependabot.get("updates"), list):
@@ -309,7 +314,7 @@ def validate_readme() -> None:
         "## Architecture",
         "## Verify",
         "## Maintainer ownership",
-        "skills/skill-repo-architecture/",
+        "skills/repo-architecture-skill/",
         "evals/cases/architecture-audit.json",
         "docs/portability-contract.md",
         "uv sync --locked",
@@ -330,7 +335,7 @@ def validate_eval() -> None:
         raise ValueError(f"{EVAL}: unreadable behavioral contract: {exc}") from exc
     if data.get("schema_version") != 1:
         fail(f"{EVAL}: schema_version must be 1")
-    if data.get("skill_name") != "skill-repo-architecture":
+    if data.get("skill_name") != "repo-architecture-skill":
         fail(f"{EVAL}: skill_name mismatch")
     trigger = data.get("trigger")
     if not isinstance(trigger, dict):

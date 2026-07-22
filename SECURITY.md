@@ -9,7 +9,7 @@ installing the skill payload.
 ## Reporting a Vulnerability
 
 Report vulnerabilities privately through a
-[GitHub security advisory](https://github.com/CodeSigils/skill-repo-architecture/security/advisories/new).
+[GitHub security advisory](https://github.com/CodeSigils/repo-architecture-skill/security/advisories/new).
 Include the affected path, impact, reproduction conditions, and a suggested fix
 when available. Do not place exploit details, credentials, or secret-like values
 in a public issue. Public issues are appropriate only for non-security bugs.
@@ -26,7 +26,7 @@ vulnerabilities in maintainer tooling are in scope.
 
 ## Shipped Payload Inventory
 
-The install artifact is exactly `skills/skill-repo-architecture/` with:
+The install artifact is exactly `skills/repo-architecture-skill/` with:
 
 - one `SKILL.md`;
 - eight Markdown files directly under `references/`;
