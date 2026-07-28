@@ -21,7 +21,14 @@
         "runtime_code": false,
         "independent_skills": 1,
         "external_contracts": true,
-        "published_artifacts": []
+        "published_artifacts": [],
+        "evidence": {
+          "canonical_source": "skills/skill-discovery/",
+          "runtime_inputs": "skills/skill-discovery/",
+          "distribution_path": "copied skill directory",
+          "maintainer_controls": "repository docs, validators, and CI",
+          "volatile_checks": "separate external monitoring from pull-request validation"
+        }
       },
       "expected": {
         "archetype": "markdown-only-skill",
@@ -42,7 +49,14 @@
         "runtime_code": false,
         "independent_skills": 6,
         "external_contracts": false,
-        "published_artifacts": []
+        "published_artifacts": [],
+        "evidence": {
+          "canonical_source": "skills/",
+          "runtime_inputs": "six independently loadable skill directories",
+          "distribution_path": "selected or complete skill pack",
+          "maintainer_controls": "fixtures, extraction checks, docs, and CI",
+          "router_safety": "test router destinations and standalone skill safety"
+        }
       },
       "expected": {
         "archetype": "multi-skill-pack",
