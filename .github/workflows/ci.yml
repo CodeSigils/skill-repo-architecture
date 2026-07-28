@@ -73,6 +73,8 @@ jobs:
         run: uv run --locked python .github/scripts/check-portability.py
       - name: Run URL verifier self-tests
         run: uv run --locked python scripts/verify-urls.py --self-test
+      - name: Check expired freshness markers
+        run: uv run --locked python scripts/check-expiry.py
       - name: Lint maintainer scripts
         run: uv run --locked ruff check scripts .github/scripts
 
