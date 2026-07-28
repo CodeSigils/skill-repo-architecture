@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "case_id": {"type": "string"},
+    "skills_used": {"type": "array", "items": {"type": "string"}},
+    "actions": {"type": "array", "items": {"type": "string"}},
+    "changed_paths": {"type": "array", "items": {"type": "string"}},
+    "outcome": {"type": "string", "enum": ["passed", "failed", "limited"]},
+    "summary": {"type": "string"},
+    "environment_limitations": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "classification": {
+      "type": "object",
+      "properties": {
+        "archetype": {
+          "type": "string",
+          "enum": [
+            "markdown-only-skill",
+            "multi-skill-pack",
+            "tool-backed-skill",
+            "operational-skill",
+            "distribution-monorepo",
+            "non-skill-control"
+          ]
+        },
+        "boundaries": {
+          "type": "object",
+          "properties": {
+            "authoring_source": {"type": "string"},
+            "runtime_payload": {"type": "string"},
+            "install_artifact": {"type": "string"},
+            "maintainer_infrastructure": {"type": "string"}
+          },
+          "required": [
+            "authoring_source",
+            "runtime_payload",
+            "install_artifact",
+            "maintainer_infrastructure"
+          ],
+          "additionalProperties": false
+        },
+        "evidence_paths": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 1
+        }
+      },
+      "required": ["archetype", "boundaries", "evidence_paths"],
+      "additionalProperties": false
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "recommendation": {"type": "string"},
+          "evidence_paths": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1
+          }
+        },
+        "required": ["recommendation", "evidence_paths"],
+        "additionalProperties": false
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "case_id",
+    "skills_used",
+    "actions",
+    "changed_paths",
+    "outcome",
+    "summary",
+    "environment_limitations",
+    "classification",
+    "recommendations"
+  ],
+  "additionalProperties": false
+}

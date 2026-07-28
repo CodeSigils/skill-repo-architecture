@@ -19,6 +19,9 @@ SKILL = SKILL_DIR / "SKILL.md"
 REF_DIR = SKILL_DIR / "references"
 README = ROOT / "README.md"
 EVAL = ROOT / "evals" / "cases" / "architecture-audit.json"
+CODEX_SCHEMA = ROOT / "evals" / "codex" / "result.schema.json"
+CODEX_POSITIVE = ROOT / "evals" / "codex" / "positive-prompt.md"
+CODEX_NEGATIVE = ROOT / "evals" / "codex" / "negative-prompt.md"
 EVIDENCE = ROOT / "docs" / "evidence-urls.json"
 PORTABILITY_CONTRACT = ROOT / "docs" / "portability-contract.md"
 SECURITY = ROOT / "SECURITY.md"
@@ -384,6 +387,28 @@ def validate_eval() -> None:
         fail(f"{EVAL}: required evidence fixtures missing: {sorted(required_fixtures - seen)}")
 
 
+def validate_codex_eval() -> None:
+    try:
+        schema = json.loads(CODEX_SCHEMA.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"{CODEX_SCHEMA}: unreadable result schema: {exc}") from exc
+    required = set(schema.get("required", []))
+    common = {
+        "case_id",
+        "skills_used",
+        "actions",
+        "changed_paths",
+        "outcome",
+        "summary",
+        "environment_limitations",
+    }
+    if not common <= required:
+        fail(f"{CODEX_SCHEMA}: missing common result fields {sorted(common - required)}")
+    for path in (CODEX_POSITIVE, CODEX_NEGATIVE):
+        if not path.is_file() or not path.read_text(encoding="utf-8").strip():
+            fail(f"{path}: evaluation prompt must be non-empty")
+
+
 def validate_portability_contract() -> None:
     try:
         text = PORTABILITY_CONTRACT.read_text(encoding="utf-8")
@@ -459,6 +484,7 @@ def main() -> int:
             validate_runtime_trust()
             validate_readme()
             validate_eval()
+            validate_codex_eval()
             validate_portability_contract()
             validate_evidence_sources()
             validate_security_contract()

@@ -134,6 +134,9 @@ Typical requests include:
 
 The reviewable behavior contract lives in
 [`evals/cases/architecture-audit.json`](evals/cases/architecture-audit.json).
+The optional executable evaluation, retained-artifact contract, and model-free
+grader tests are documented in
+[`docs/behavioral-evaluation.md`](docs/behavioral-evaluation.md).
 
 ## Runtime payload
 
@@ -243,6 +246,8 @@ Run the deterministic suite:
 ```bash
 uv run --locked python scripts/validate.py
 uv run --locked python scripts/validate.py --self-test
+uv run --locked python scripts/run-codex-regression.py --self-test
+uv run --locked python scripts/grade-codex-regression.py --self-test
 uv run --locked python .github/scripts/check-portability.py
 uv run --locked ruff check scripts .github/scripts
 ```

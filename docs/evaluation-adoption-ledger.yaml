@@ -1,0 +1,23 @@
+schema_version: 1
+repository: repo-architecture-skill
+contract: behavioral-evaluation-contract
+started_at: "2026-07-28T11:53:00+03:00"
+ended_at: "2026-07-28T11:54:46+03:00"
+baseline_revision: a53ec5ff9afab6e06fe07466e3b4d4cf629f9b75
+implementation:
+  status: deterministic_checks_passed
+  adaptations:
+    - "Reuse the shared case/result/artifact vocabulary."
+    - "Keep fixture construction and semantic grading repository-specific."
+  defects:
+    - "Initial runner lint found one unused fixture-path variable; removed before publication."
+measurements:
+  elapsed_seconds: 106
+  live_run_seconds: null
+  usage:
+    input_tokens: null
+    cached_input_tokens: null
+    output_tokens: null
+limitations:
+  - "No live model run is required for deterministic CI adoption."
+  - "The first local uv invocation could not use the read-only default cache; validation passed with a temporary writable cache."
