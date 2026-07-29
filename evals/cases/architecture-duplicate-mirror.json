@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "case_id": "architecture-duplicate-mirror",
+  "description": "Markdown-only skill fixture with an undeclared duplicate root mirror.",
+  "observed": {
+    "entrypoints": ["skills/example/SKILL.md"],
+    "runtime_code": false,
+    "independent_skills": 1,
+    "external_contracts": false,
+    "published_artifacts": [],
+    "evidence": {
+      "canonical_source": "skills/example/",
+      "runtime_inputs": "skills/example/",
+      "distribution_path": "copied skill directory",
+      "maintainer_controls": "README.md and repository metadata",
+      "volatile_checks": "none observed"
+    }
+  },
+  "expected": {
+    "archetype": "markdown-only-skill",
+    "boundaries": {
+      "authoring_source": "skills/example/",
+      "runtime_payload": "skills/example/",
+      "install_artifact": "copied skill directory",
+      "maintainer_infrastructure": "README.md and repository metadata"
+    },
+    "required_recommendations": [
+      "Remove the duplicate root SKILL.md mirror unless a real consumer is declared"
+    ],
+    "prohibited_recommendations": [
+      "add a generated payload mirror solely for convenience"
+    ]
+  },
+  "fixture_files": {
+    "README.md": "# Example Skill\n\nThe canonical installable skill is `skills/example/`.\n",
+    "skills/example/SKILL.md": "---\nname: example\ndescription: Explain example repositories.\n---\n\n# Example\n\nInspect the repository and summarize its structure.\n",
+    "SKILL.md": "---\nname: example\ndescription: Explain example repositories.\n---\n\n# Example\n\nInspect the repository and summarize its structure.\n",
+    "src/example/parser.py": "\"\"\"Parse a key/value line.\"\"\"\n\ndef parse_line(value: str) -> tuple[str, str]:\n    return tuple(value.split(\"=\"))\n",
+    ".gitignore": ".agents/\n__pycache__/\n"
+  }
+}

@@ -20,6 +20,7 @@ SKILL_DIR = ROOT / "skills/repo-architecture-skill"
 POSITIVE_PROMPT = ROOT / "evals/codex/positive-prompt.md"
 NEGATIVE_PROMPT = ROOT / "evals/codex/negative-prompt.md"
 RESULT_SCHEMA = ROOT / "evals/codex/result.schema.json"
+EQUIVALENCE_CASE = ROOT / "evals/cases/architecture-duplicate-mirror.json"
 GRADER = ROOT / "scripts/grade-codex-regression.py"
 TOKEN_FIELDS = (
     "input_tokens",
@@ -53,32 +54,7 @@ def prepare_fixture(root: Path) -> None:
     canonical.mkdir(parents=True)
     parser.mkdir(parents=True)
     shutil.copytree(SKILL_DIR, installed)
-    files = {
-        "README.md": (
-            "# Example Skill\n\n"
-            "The canonical installable skill is `skills/example/`.\n"
-        ),
-        "skills/example/SKILL.md": (
-            "---\n"
-            "name: example\n"
-            "description: Explain example repositories.\n"
-            "---\n\n"
-            "# Example\n\nInspect the repository and summarize its structure.\n"
-        ),
-        "SKILL.md": (
-            "---\n"
-            "name: example\n"
-            "description: Explain example repositories.\n"
-            "---\n\n"
-            "# Example\n\nInspect the repository and summarize its structure.\n"
-        ),
-        "src/example/parser.py": (
-            '"""Parse a key/value line."""\n\n'
-            "def parse_line(value: str) -> tuple[str, str]:\n"
-            '    return tuple(value.split("="))\n'
-        ),
-        ".gitignore": ".agents/\n__pycache__/\n",
-    }
+    files = json.loads(EQUIVALENCE_CASE.read_text(encoding="utf-8"))["fixture_files"]
     for relative, content in files.items():
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
