@@ -9,3 +9,5 @@ classification and every recommendation.
 
 Return the final result using the supplied JSON schema. The fixture contains an
 intentional duplicate runtime mirror that has no declared consumer.
+Set `case_id` exactly to `architecture-duplicate-mirror` so the result can be
+compared by the deterministic grader.
