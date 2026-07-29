@@ -171,6 +171,7 @@ def execute(
     transcript: Path,
     stderr_path: Path,
     timeout_seconds: int,
+    environment: dict[str, str],
 ) -> dict[str, Any]:
     started = datetime.now(UTC)
     clock = monotonic()
@@ -191,7 +192,7 @@ def execute(
                 text=True,
                 check=False,
                 timeout=timeout_seconds,
-                env=os.environ.copy(),
+                env=environment,
             )
             if result.returncode:
                 status = "failed"
@@ -278,6 +279,15 @@ def main() -> int:
     parser.add_argument("--fixture-dir", type=Path)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--codex-bin", default="codex")
+    parser.add_argument(
+        "--codex-home",
+        type=Path,
+        help="Persistent writable CODEX_HOME for the run; credentials remain user-managed.",
+    )
+    parser.add_argument(
+        "--expected-codex-version",
+        help="Fail before evaluation unless codex --version contains this text.",
+    )
     parser.add_argument("--timeout-seconds", type=int, default=900)
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--self-test", action="store_true")
@@ -291,6 +301,15 @@ def main() -> int:
     output_dir = (
         args.output_dir or ROOT / "artifacts/codex-regression" / run_id
     ).resolve()
+    environment = os.environ.copy()
+    codex_home = None
+    if args.codex_home:
+        codex_home = args.codex_home.expanduser().resolve()
+        codex_home.mkdir(parents=True, exist_ok=True)
+        environment["CODEX_HOME"] = str(codex_home)
+    elif environment.get("CODEX_HOME"):
+        codex_home = Path(environment["CODEX_HOME"]).expanduser().resolve()
+    observed_version = codex_version(args.codex_bin)
     temporary: tempfile.TemporaryDirectory[str] | None = None
     fixture = args.fixture_dir.resolve() if args.fixture_dir else None
     summary: dict[str, Any] = {
@@ -306,7 +325,10 @@ def main() -> int:
             text=True,
             check=True,
         ).stdout.strip(),
-        "runtime": {"codex_cli": codex_version(args.codex_bin)},
+        "runtime": {
+            "codex_cli": observed_version,
+            "codex_home": str(codex_home) if codex_home else None,
+        },
         "timeout_seconds": args.timeout_seconds,
         "scenarios": {},
         "grade": {"status": "not_run", "path": str(output_dir / "grade.json")},
@@ -322,6 +344,13 @@ def main() -> int:
     }
     exit_code = 1
     try:
+        if args.expected_codex_version and (
+            observed_version is None or args.expected_codex_version not in observed_version
+        ):
+            raise RuntimeError(
+                f"codex version mismatch: expected {args.expected_codex_version!r}, "
+                f"observed {observed_version!r}"
+            )
         if fixture is None:
             temporary = tempfile.TemporaryDirectory(prefix="repo-architecture-eval-")
             fixture = Path(temporary.name) / "fixture"
@@ -342,6 +371,7 @@ def main() -> int:
                 output_dir / f"{name}-transcript.jsonl",
                 output_dir / f"{name}-stderr.log",
                 args.timeout_seconds,
+                environment,
             )
             summary["scenarios"][name] = scenario
             if scenario["status"] != "completed":
