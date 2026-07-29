@@ -1,85 +1,137 @@
 {
-  "version": 1,
-  "description": "Machine-readable URL evidence index for documentation references.",
+  "version": 3,
+  "description": "Machine-readable URL evidence index for documentation references. v3 metadata refresh: status and last_verified.",
   "urls": [
     {
       "name": "agentskills.io specification",
       "url": "https://agentskills.io/specification",
-      "expected_statuses": [200],
-      "required_text": ["SKILL.md", "description"],
+      "expected_statuses": [
+        200
+      ],
+      "required_text": [
+        "SKILL.md",
+        "description"
+      ],
       "source_section": "README.md",
-      "notes": "Official agentskills.io specification"
+      "notes": "Official agentskills.io specification",
+      "status": "active",
+      "last_verified": "2026-07-29"
     },
     {
       "name": "GitHub CodeSigils repo-architecture-skill",
       "url": "https://github.com/CodeSigils/repo-architecture-skill",
-      "expected_statuses": [200],
+      "expected_statuses": [
+        200
+      ],
       "source_section": "README.md",
-      "notes": "Source repository for this skill"
+      "notes": "Source repository for this skill",
+      "status": "active",
+      "last_verified": "2026-07-29"
     },
     {
       "name": "OpenAI Codex manual",
       "url": "https://developers.openai.com/codex/codex-manual.md",
-      "expected_statuses": [200],
-      "required_text": ["### Build skills", ".agents/skills"],
+      "expected_statuses": [
+        200
+      ],
+      "required_text": [
+        "### Build skills",
+        ".agents/skills"
+      ],
       "source_section": "docs/research/platform-skill-support-snapshot.md",
-      "notes": "Official Codex skills, plugins, and AGENTS.md documentation"
+      "notes": "Official Codex skills, plugins, and AGENTS.md documentation",
+      "status": "active",
+      "last_verified": "2026-07-29"
     },
     {
       "name": "Claude Code skills",
       "url": "https://code.claude.com/docs/en/skills",
-      "expected_statuses": [200],
-      "required_text": [".claude/skills"],
+      "expected_statuses": [
+        200
+      ],
+      "required_text": [
+        ".claude/skills"
+      ],
       "source_section": "docs/research/platform-skill-support-snapshot.md",
-      "notes": "Official Claude Code skill documentation"
+      "notes": "Official Claude Code skill documentation",
+      "status": "active",
+      "last_verified": "2026-07-29"
     },
     {
       "name": "Gemini CLI skills",
       "url": "https://geminicli.com/docs/cli/using-agent-skills/",
-      "expected_statuses": [200],
-      "required_text": [".agents/skills"],
+      "expected_statuses": [
+        200
+      ],
+      "required_text": [
+        ".agents/skills"
+      ],
       "source_section": "docs/research/platform-skill-support-snapshot.md",
-      "notes": "Official Gemini CLI skill management documentation"
+      "notes": "Official Gemini CLI skill management documentation",
+      "status": "active",
+      "last_verified": "2026-07-29"
     },
     {
       "name": "Hermes Agent skills",
       "url": "https://hermes-agent.nousresearch.com/docs/user-guide/features/skills",
-      "expected_statuses": [200],
-      "required_text": ["external_dirs"],
+      "expected_statuses": [
+        200
+      ],
+      "required_text": [
+        "external_dirs"
+      ],
       "source_section": "docs/research/platform-skill-support-snapshot.md",
-      "notes": "Official Hermes Agent skills documentation"
+      "notes": "Official Hermes Agent skills documentation",
+      "status": "active",
+      "last_verified": "2026-07-29"
     },
     {
       "name": "Addy Osmani repository snapshot",
       "url": "https://github.com/addyosmani/agent-skills/tree/2fbfa004a0192529bc997d103fc12f19a3804aab",
-      "expected_statuses": [200],
+      "expected_statuses": [
+        200
+      ],
       "monitor": false,
       "source_section": "docs/research/repository-structure-snapshot.md",
-      "notes": "Pinned tree used for repository architecture evidence"
+      "notes": "Pinned tree used for repository architecture evidence",
+      "status": "active",
+      "last_verified": "2026-07-29"
     },
     {
       "name": "OpenAI skills repository snapshot",
       "url": "https://github.com/openai/skills/tree/49f948faa9258a0c61caceaf225e179651397431",
-      "expected_statuses": [200],
+      "expected_statuses": [
+        200
+      ],
       "monitor": false,
       "source_section": "docs/research/repository-structure-snapshot.md",
-      "notes": "Pinned tree used for repository architecture evidence"
+      "notes": "Pinned tree used for repository architecture evidence",
+      "status": "active",
+      "last_verified": "2026-07-29"
     },
     {
       "name": "Anthropic plugin repository snapshot",
       "url": "https://github.com/anthropics/claude-plugins-official/tree/5770185ea302bab23fbcf58ff818fd73e626c708",
-      "expected_statuses": [200],
+      "expected_statuses": [
+        200
+      ],
       "monitor": false,
       "source_section": "docs/research/repository-structure-snapshot.md",
-      "notes": "Pinned tree used for repository architecture evidence"
+      "notes": "Pinned tree used for repository architecture evidence",
+      "status": "active",
+      "last_verified": "2026-07-29"
     },
     {
       "name": "Wondelai repository snapshot",
       "url": "https://github.com/wondelai/skills/tree/ed2930cf8496336641441eef513ad2ad857b65a1",
-      "expected_statuses": [200],
+      "expected_statuses": [
+        200
+      ],
       "monitor": false,
       "source_section": "docs/research/repository-structure-snapshot.md",
-      "notes": "Pinned tree used for repository architecture evidence"
+      "notes": "Pinned tree used for repository architecture evidence",
+      "status": "active",
+      "last_verified": "2026-07-29"
     }
   ]
 }
