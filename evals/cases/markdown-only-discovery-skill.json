@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "case_id": "markdown-only-discovery-skill",
+  "description": "One markdown-only skill with explicit separation of volatile monitoring.",
+  "observed": {
+    "entrypoints": ["skills/skill-discovery/SKILL.md"],
+    "runtime_code": false,
+    "independent_skills": 1,
+    "external_contracts": true,
+    "published_artifacts": [],
+    "evidence": {
+      "canonical_source": "skills/skill-discovery/",
+      "runtime_inputs": "skills/skill-discovery/",
+      "distribution_path": "copied skill directory",
+      "maintainer_controls": "repository docs, validators, and CI",
+      "volatile_checks": "separate external monitoring from pull-request validation"
+    }
+  },
+  "expected": {
+    "archetype": "markdown-only-skill",
+    "boundaries": {
+      "authoring_source": "skills/skill-discovery/",
+      "runtime_payload": "skills/skill-discovery/",
+      "install_artifact": "copied skill directory",
+      "maintainer_infrastructure": "repository docs, validators, and CI"
+    },
+    "required_recommendations": [
+      "separate external monitoring from pull-request validation"
+    ],
+    "prohibited_recommendations": [
+      "add a generated payload mirror solely for convenience"
+    ]
+  },
+  "fixture_files": {
+    "README.md": "# Discovery Skill\n\nThe canonical installable skill is `skills/skill-discovery/`.\n",
+    "skills/skill-discovery/SKILL.md": "---\nname: skill-discovery\ndescription: Discover and route to skills.\n---\n\n# Skill Discovery\n\nInspect the repository and route requests to the appropriate skill.\n",
+    ".gitignore": ".agents/\n"
+  }
+}

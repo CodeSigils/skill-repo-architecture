@@ -18,9 +18,13 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 SKILL_DIR = ROOT / "skills/repo-architecture-skill"
 POSITIVE_PROMPT = ROOT / "evals/codex/positive-prompt.md"
+PROMPTS = {
+    "architecture-duplicate-mirror": POSITIVE_PROMPT,
+    "markdown-only-discovery-skill": ROOT / "evals/codex/markdown-only-prompt.md",
+}
 NEGATIVE_PROMPT = ROOT / "evals/codex/negative-prompt.md"
 RESULT_SCHEMA = ROOT / "evals/codex/result.schema.json"
-EQUIVALENCE_CASE = ROOT / "evals/cases/architecture-duplicate-mirror.json"
+CASE_DIR = ROOT / "evals/cases"
 GRADER = ROOT / "scripts/grade-codex-regression.py"
 TOKEN_FIELDS = (
     "input_tokens",
@@ -43,18 +47,19 @@ def run_checked(command: list[str], cwd: Path) -> None:
         raise RuntimeError(f"command failed ({' '.join(command)}): {detail}")
 
 
-def prepare_fixture(root: Path) -> None:
-    """Create a Markdown-only skill repo with one unowned duplicate mirror."""
+def case_contract(case_id: str) -> dict[str, Any]:
+    """Load one shared evaluation case contract."""
+    return json.loads((CASE_DIR / f"{case_id}.json").read_text(encoding="utf-8"))
+
+
+def prepare_fixture(root: Path, case_id: str) -> None:
+    """Create an isolated fixture from a shared case contract."""
     if root.exists():
         raise FileExistsError(f"fixture path already exists: {root}")
     installed = root / ".agents/skills/repo-architecture-skill"
-    canonical = root / "skills/example"
-    parser = root / "src/example"
     installed.parent.mkdir(parents=True)
-    canonical.mkdir(parents=True)
-    parser.mkdir(parents=True)
     shutil.copytree(SKILL_DIR, installed)
-    files = json.loads(EQUIVALENCE_CASE.read_text(encoding="utf-8"))["fixture_files"]
+    files = case_contract(case_id)["fixture_files"]
     for relative, content in files.items():
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -187,7 +192,7 @@ def execute(
     }
 
 
-def grade(output_dir: Path) -> int:
+def grade(output_dir: Path, case_id: str) -> int:
     return subprocess.run(
         [
             sys.executable,
@@ -198,6 +203,8 @@ def grade(output_dir: Path) -> int:
             str(output_dir / "negative-result.txt"),
             "--output",
             str(output_dir / "grade.json"),
+            "--case-id",
+            case_id,
         ],
         cwd=ROOT,
         check=False,
@@ -207,7 +214,7 @@ def grade(output_dir: Path) -> int:
 def run_self_tests() -> int:
     with tempfile.TemporaryDirectory() as directory:
         fixture = Path(directory) / "fixture"
-        prepare_fixture(fixture)
+        prepare_fixture(fixture, "architecture-duplicate-mirror")
         assert (fixture / ".agents/skills/repo-architecture-skill/SKILL.md").is_file()
         assert (fixture / "SKILL.md").read_bytes() == (
             fixture / "skills/example/SKILL.md"
@@ -253,6 +260,7 @@ def run_self_tests() -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixture-dir", type=Path)
+    parser.add_argument("--case-id", choices=sorted(PROMPTS), default="architecture-duplicate-mirror")
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--codex-bin", default="codex")
     parser.add_argument(
@@ -330,13 +338,13 @@ def main() -> int:
         if fixture is None:
             temporary = tempfile.TemporaryDirectory(prefix="repo-architecture-eval-")
             fixture = Path(temporary.name) / "fixture"
-        prepare_fixture(fixture)
+        prepare_fixture(fixture, args.case_id)
         if args.prepare_only:
             print(f"Prepared Codex evaluation fixture: {fixture}")
             return 0
         output_dir.mkdir(parents=True, exist_ok=True)
         cases = (
-            ("positive", POSITIVE_PROMPT, RESULT_SCHEMA),
+            ("positive", PROMPTS[args.case_id], RESULT_SCHEMA),
             ("negative", NEGATIVE_PROMPT, None),
         )
         for name, prompt, schema in cases:
@@ -352,7 +360,7 @@ def main() -> int:
             summary["scenarios"][name] = scenario
             if scenario["status"] != "completed":
                 raise RuntimeError(f"{name} scenario {scenario['status']}")
-        grade_code = grade(output_dir)
+        grade_code = grade(output_dir, args.case_id)
         summary["grade"]["status"] = "passed" if grade_code == 0 else "failed"
         summary["status"] = summary["grade"]["status"]
         exit_code = grade_code

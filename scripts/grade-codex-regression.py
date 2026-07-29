@@ -37,13 +37,13 @@ def normalized_path(value: str) -> str:
     return value.removeprefix("./").rstrip("/")
 
 
-def grade_positive(result: dict[str, Any]) -> list[str]:
+def grade_positive(result: dict[str, Any], case_id: str = "architecture-duplicate-mirror") -> list[str]:
     errors: list[str] = []
     missing = COMMON_FIELDS - result.keys()
     if missing:
         errors.append(f"result lacks common fields: {sorted(missing)}")
         return errors
-    if result["case_id"] != "architecture-duplicate-mirror":
+    if result["case_id"] != case_id:
         errors.append("positive result has the wrong case_id")
     skills = result.get("skills_used")
     if not isinstance(skills, list) or not any(
@@ -77,11 +77,17 @@ def grade_positive(result: dict[str, Any]) -> list[str]:
         for item in recommendations
         if isinstance(item, dict)
     ).lower()
-    if not (
-        ("duplicate" in combined or "mirror" in combined)
+    required = (
+        ("separate external monitoring from pull-request validation", "separate deterministic pull-request checks from volatile monitoring")
+        if case_id == "markdown-only-discovery-skill"
+        else ("duplicate",)
+    )
+    if not any(phrase in combined for phrase in required) and not (
+        case_id == "architecture-duplicate-mirror"
+        and ("mirror" in combined)
         and ("remove" in combined or "canonical" in combined)
     ):
-        errors.append("audit does not address the unowned duplicate mirror")
+        errors.append(f"audit does not address required case recommendation: {required[0]}")
     for index, item in enumerate(recommendations):
         paths = item.get("evidence_paths") if isinstance(item, dict) else None
         if not isinstance(paths, list) or not paths:
@@ -145,6 +151,7 @@ def main() -> int:
     parser.add_argument("--positive-result", type=Path)
     parser.add_argument("--negative-result", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--case-id", default="architecture-duplicate-mirror")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
@@ -152,7 +159,7 @@ def main() -> int:
     if args.positive_result is None or args.negative_result is None:
         parser.error("--positive-result and --negative-result are required")
     try:
-        errors = grade_positive(read_json(args.positive_result))
+        errors = grade_positive(read_json(args.positive_result), args.case_id)
         errors.extend(grade_negative(args.negative_result.read_text(encoding="utf-8")))
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         errors = [f"cannot read evaluation artifacts: {exc}"]
