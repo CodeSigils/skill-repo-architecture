@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Validate the canonical skill payload and behavioral contract."""
 
 from __future__ import annotations

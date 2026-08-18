@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Verify reachable HTTP(S) URLs referenced by docs and skill files.
 
 The URL list lives in docs/evidence-urls.json so the research evidence base has
@@ -23,7 +22,6 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "docs" / "evidence-urls.json"
@@ -63,7 +61,7 @@ def validate_entry(entry: dict[str, Any]) -> None:
         raise ValueError("expected_statuses must be a non-empty list")
     for status in entry["expected_statuses"]:
         if not isinstance(status, int):
-            raise ValueError("expected_statuses must contain integers")
+            raise TypeError("expected_statuses must contain integers")
     if "monitor" in entry and not isinstance(entry["monitor"], bool):
         raise ValueError("monitor must be a boolean")
     required_text = entry.get("required_text", [])
@@ -165,7 +163,7 @@ def check_self_test() -> None:
     try:
         validate_entry({"name": "test", "url": "https://example.com", "expected_statuses": ["200"]})
         assert False, "should have failed"
-    except ValueError:
+    except TypeError:
         print("  PASS  validate_entry non-int status")
 
     for invalid in ({"monitor": "false"}, {"required_text": [""]}):
@@ -227,8 +225,8 @@ def main() -> int:
         marker = "  ← DRIFT" if note == "DRIFT" else ""
         marker = "  ← BROKEN" if note == "BROKEN" else marker
         print(
-            f"  {entry['name']:<30s} {str(result.status):<8s} {expected_text:<12s} "
-            f"{str(result.redirects):<9s} {content_label:<12s} {note:<10s}{marker}"
+            f"  {entry['name']:<30s} {result.status!s:<8s} {expected_text:<12s} "
+            f"{result.redirects!s:<9s} {content_label:<12s} {note:<10s}{marker}"
         )
 
     if drift_found:

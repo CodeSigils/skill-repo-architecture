@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Grade repo-architecture Codex evaluation artifacts deterministically."""
 
 from __future__ import annotations
@@ -29,7 +28,7 @@ COMMON_FIELDS = {
 def read_json(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
-        raise ValueError(f"{path}: expected a JSON object")
+        raise TypeError(f"{path}: expected a JSON object")
     return value
 
 

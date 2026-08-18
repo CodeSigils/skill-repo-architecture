@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Check for agent-specific references in portable skill files.
 
 Scans all skills/**/*.md for platform-specific tool names, CLI commands,
