@@ -11,7 +11,8 @@ import re
 import sys
 from pathlib import Path
 
-SKILLS_DIR = Path("skills")
+ROOT = Path(__file__).resolve().parents[2]
+SKILLS_DIR = ROOT / "skills"
 
 FORBIDDEN_PATTERNS = (
     ("Hermes tool name", re.compile(r"\bskill_(?:view|manage)\b", re.IGNORECASE)),
@@ -49,7 +50,7 @@ def scan_file(path: Path) -> list[tuple[Path, int, str, str]]:
             continue
         for label, pattern in FORBIDDEN_PATTERNS:
             if pattern.search(line):
-                violations.append((path, line_no, label, line.rstrip()))
+                violations.append((path.relative_to(ROOT), line_no, label, line.rstrip()))
     return violations
 
 

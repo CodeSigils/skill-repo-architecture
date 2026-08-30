@@ -8,12 +8,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-BOUNDARIES = {
-    "authoring_source",
-    "runtime_payload",
-    "install_artifact",
-    "maintainer_infrastructure",
-}
+from evaluation_contract import load_case_contract
+
+ROOT = Path(__file__).resolve().parents[1]
+CASE_DIR = ROOT / "evals/cases"
 COMMON_FIELDS = {
     "case_id",
     "skills_used",
@@ -32,12 +30,9 @@ def read_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def normalized_path(value: str) -> str:
-    return value.removeprefix("./").rstrip("/")
-
-
 def grade_positive(result: dict[str, Any], case_id: str = "architecture-duplicate-mirror") -> list[str]:
     errors: list[str] = []
+    contract = load_case_contract(CASE_DIR, case_id)
     missing = COMMON_FIELDS - result.keys()
     if missing:
         errors.append(f"result lacks common fields: {sorted(missing)}")
@@ -61,7 +56,7 @@ def grade_positive(result: dict[str, Any], case_id: str = "architecture-duplicat
     if classification.get("archetype") != "markdown-only-skill":
         errors.append("fixture was not classified as markdown-only-skill")
     boundaries = classification.get("boundaries")
-    if not isinstance(boundaries, dict) or set(boundaries) != BOUNDARIES:
+    if not isinstance(boundaries, dict) or set(boundaries) != contract.boundaries:
         errors.append("classification does not map all four boundaries")
     evidence = classification.get("evidence_paths")
     if not isinstance(evidence, list) or not evidence:
@@ -76,17 +71,8 @@ def grade_positive(result: dict[str, Any], case_id: str = "architecture-duplicat
         for item in recommendations
         if isinstance(item, dict)
     ).lower()
-    required = (
-        ("separate external monitoring from pull-request validation", "separate deterministic pull-request checks from volatile monitoring")
-        if case_id == "markdown-only-discovery-skill"
-        else ("duplicate",)
-    )
-    if not any(phrase in combined for phrase in required) and not (
-        case_id == "architecture-duplicate-mirror"
-        and ("mirror" in combined)
-        and ("remove" in combined or "canonical" in combined)
-    ):
-        errors.append(f"audit does not address required case recommendation: {required[0]}")
+    if not any(all(term in combined for term in term_set) for term_set in contract.recommendation_term_sets):
+        errors.append("audit does not address the case contract's required recommendation")
     for index, item in enumerate(recommendations):
         paths = item.get("evidence_paths") if isinstance(item, dict) else None
         if not isinstance(paths, list) or not paths:
@@ -140,7 +126,6 @@ def run_self_tests() -> int:
     assert any("four boundaries" in error for error in grade_positive(failing))
     assert grade_negative("Use split('=', 1) in parser.py.") == []
     assert grade_negative("Run repo-architecture-skill and map the runtime payload.")
-    assert normalized_path("./skills/example/") == "skills/example"
     print("PASS: grade-codex-regression.py self-tests")
     return 0
 
@@ -160,7 +145,7 @@ def main() -> int:
     try:
         errors = grade_positive(read_json(args.positive_result), args.case_id)
         errors.extend(grade_negative(args.negative_result.read_text(encoding="utf-8")))
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
         errors = [f"cannot read evaluation artifacts: {exc}"]
     report = {"passed": not errors, "errors": errors}
     if args.output:

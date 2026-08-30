@@ -9,8 +9,11 @@ import sys
 import tempfile
 import tomllib
 from pathlib import Path
+from typing import NoReturn
 
 import yaml
+from evaluation_contract import load_case_contract, object_mapping
+from evidence_manifest import load_evidence_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL_DIR = ROOT / "skills" / "repo-architecture-skill"
@@ -21,6 +24,7 @@ EVAL = ROOT / "evals" / "cases" / "architecture-audit.json"
 CODEX_SCHEMA = ROOT / "evals" / "codex" / "result.schema.json"
 CODEX_POSITIVE = ROOT / "evals" / "codex" / "positive-prompt.md"
 CODEX_NEGATIVE = ROOT / "evals" / "codex" / "negative-prompt.md"
+CODEX_CASE_IDS = {"architecture-duplicate-mirror", "markdown-only-discovery-skill"}
 EVIDENCE = ROOT / "docs" / "evidence-urls.json"
 PORTABILITY_CONTRACT = ROOT / "docs" / "portability-contract.md"
 SECURITY = ROOT / "SECURITY.md"
@@ -92,7 +96,7 @@ DANGEROUS_RUNTIME_PATTERNS = (
 )
 
 
-def fail(message: str) -> None:
+def fail(message: str) -> NoReturn:
     raise ValueError(message)
 
 
@@ -279,7 +283,10 @@ def validate_security_contract() -> None:
 
 def validate_maintainer_environment() -> None:
     project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
-    dependencies = project.get("dependency-groups", {}).get("dev", [])
+    dependency_groups = object_mapping(project.get("dependency-groups"), f"{PYPROJECT}: dependency-groups")
+    dependencies = dependency_groups.get("dev")
+    if not isinstance(dependencies, list) or not all(isinstance(dependency, str) for dependency in dependencies):
+        fail(f"{PYPROJECT}: dependency-groups.dev must be a string list")
     pins: dict[str, str] = {}
     for dependency in dependencies:
         match = re.fullmatch(
@@ -293,14 +300,20 @@ def validate_maintainer_environment() -> None:
         fail(f"{PYPROJECT}: dev dependencies must be exactly pyyaml and ruff")
 
     lock = tomllib.loads(UV_LOCK.read_text(encoding="utf-8"))
-    locked_versions = {
-        package["name"]: package["version"]
-        for package in lock.get("package", [])
-        if package.get("name") in pins and "version" in package
-    }
+    packages = lock.get("package", [])
+    if not isinstance(packages, list) or not all(isinstance(package, dict) for package in packages):
+        fail(f"{UV_LOCK}: package must be a list of objects")
+    locked_versions: dict[str, str] = {}
+    for package in packages:
+        name = package.get("name")
+        version = package.get("version")
+        if name in pins and isinstance(name, str) and isinstance(version, str):
+            locked_versions[name] = version
     if locked_versions != pins:
         fail(f"{UV_LOCK}: locked dev dependency versions must match {PYPROJECT}")
-    if project.get("tool", {}).get("uv", {}).get("package") is not False:
+    tool = object_mapping(project.get("tool"), f"{PYPROJECT}: tool")
+    uv_config = object_mapping(tool.get("uv"), f"{PYPROJECT}: tool.uv")
+    if uv_config.get("package") is not False:
         fail(f"{PYPROJECT}: maintainer environment must be a non-package uv project")
     if not UV_LOCK.is_file():
         fail(f"{UV_LOCK}: committed uv lockfile is required")
@@ -332,9 +345,10 @@ def validate_readme() -> None:
 
 def validate_eval() -> None:
     try:
-        data = json.loads(EVAL.read_text(encoding="utf-8"))
+        raw: object = json.loads(EVAL.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f"{EVAL}: unreadable behavioral contract: {exc}") from exc
+    data = object_mapping(raw, str(EVAL))
     if data.get("schema_version") != 1:
         fail(f"{EVAL}: schema_version must be 1")
     if data.get("skill_name") != "repo-architecture-skill":
@@ -388,10 +402,14 @@ def validate_eval() -> None:
 
 def validate_codex_eval() -> None:
     try:
-        schema = json.loads(CODEX_SCHEMA.read_text(encoding="utf-8"))
+        raw: object = json.loads(CODEX_SCHEMA.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f"{CODEX_SCHEMA}: unreadable result schema: {exc}") from exc
-    required = set(schema.get("required", []))
+    schema = object_mapping(raw, str(CODEX_SCHEMA))
+    raw_required = schema.get("required")
+    if not isinstance(raw_required, list) or not all(isinstance(field, str) for field in raw_required):
+        fail(f"{CODEX_SCHEMA}: required must be a string list")
+    required = set(raw_required)
     common = {
         "case_id",
         "skills_used",
@@ -403,9 +421,34 @@ def validate_codex_eval() -> None:
     }
     if not common <= required:
         fail(f"{CODEX_SCHEMA}: missing common result fields {sorted(common - required)}")
+    schema_properties = object_mapping(schema.get("properties"), f"{CODEX_SCHEMA}: properties")
+    classification = object_mapping(
+        schema_properties.get("classification"),
+        f"{CODEX_SCHEMA}: properties.classification",
+    )
+    properties = object_mapping(
+        classification.get("properties"),
+        f"{CODEX_SCHEMA}: properties.classification.properties",
+    )
+    boundary_schema = object_mapping(
+        properties.get("boundaries"),
+        f"{CODEX_SCHEMA}: properties.classification.properties.boundaries",
+    )
+    raw_schema_boundaries = boundary_schema.get("required")
+    if not isinstance(raw_schema_boundaries, list) or not all(
+        isinstance(boundary, str) for boundary in raw_schema_boundaries
+    ):
+        fail(f"{CODEX_SCHEMA}: boundary requirements must be a string list")
+    schema_boundaries = set(raw_schema_boundaries)
+    if schema_boundaries != BOUNDARIES:
+        fail(f"{CODEX_SCHEMA}: classification boundaries must match the behavioral contract")
     for path in (CODEX_POSITIVE, CODEX_NEGATIVE):
         if not path.is_file() or not path.read_text(encoding="utf-8").strip():
             fail(f"{path}: evaluation prompt must be non-empty")
+    for case_id in sorted(CODEX_CASE_IDS):
+        contract = load_case_contract(ROOT / "evals/cases", case_id)
+        if contract.boundaries != BOUNDARIES:
+            fail(f"evals/cases/{case_id}.json: boundaries must match the behavioral contract")
 
 
 def validate_portability_contract() -> None:
@@ -429,23 +472,15 @@ def validate_portability_contract() -> None:
 
 def validate_evidence_sources() -> None:
     try:
-        entries = json.loads(EVIDENCE.read_text(encoding="utf-8"))["urls"]
-    except (OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        manifest = load_evidence_manifest(EVIDENCE)
+    except ValueError as exc:
         raise ValueError(f"{EVIDENCE}: invalid evidence manifest: {exc}") from exc
-    if not isinstance(entries, list) or not entries:
-        fail(f"{EVIDENCE}: urls must be a non-empty list")
-    for entry in entries:
-        if not isinstance(entry, dict):
-            fail(f"{EVIDENCE}: every URL entry must be an object")
-        source_name = entry.get("source_section")
-        url = entry.get("url")
-        if not isinstance(source_name, str) or not isinstance(url, str):
-            fail(f"{EVIDENCE}: every entry needs string url and source_section fields")
-        source = (ROOT / source_name).resolve()
+    for entry in manifest.entries:
+        source = (ROOT / entry.source_section).resolve()
         if not source.is_relative_to(ROOT.resolve()) or not source.is_file():
-            fail(f"{EVIDENCE}: source file does not exist: {source_name}")
-        if url not in source.read_text(encoding="utf-8"):
-            fail(f"{EVIDENCE}: {url} is not present in {source_name}")
+            fail(f"{EVIDENCE}: source file does not exist: {entry.source_section}")
+        if entry.url not in source.read_text(encoding="utf-8"):
+            fail(f"{EVIDENCE}: {entry.url} is not present in {entry.source_section}")
 
 
 def self_test() -> None:
@@ -490,7 +525,7 @@ def main() -> int:
             validate_maintainer_environment()
             validate_repository_secrets()
             print("PASS: payload, docs, behavior, security, and maintainer environment")
-    except (AssertionError, ValueError) as exc:
+    except (AssertionError, OSError, TypeError, ValueError, yaml.YAMLError) as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1
     return 0

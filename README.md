@@ -193,6 +193,8 @@ repo-architecture-skill/
 │   └── codex/                       # optional model-regression prompts and schema
 ├── scripts/
 │   ├── check-expiry.py             # Scans for expired doc and config references
+│   ├── evaluation_contract.py       # Validates shared Codex evaluation contracts
+│   ├── evidence_manifest.py         # Shared validated evidence-urls manifest loader
 │   ├── grade-codex-regression.py   # Grades Codex regression artifacts
 │   ├── run-codex-regression.py     # Runs isolated Codex skill regressions
 │   ├── validate.py                 # deterministic schema/link/fixture checks

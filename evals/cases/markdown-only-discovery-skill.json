@@ -31,6 +31,12 @@
       "add a generated payload mirror solely for convenience"
     ]
   },
+  "grading": {
+    "recommendation_term_sets": [
+      ["separate external monitoring from pull-request validation"],
+      ["separate deterministic pull-request checks from volatile monitoring"]
+    ]
+  },
   "fixture_files": {
     "README.md": "# Discovery Skill\n\nThe canonical installable skill is `skills/skill-discovery/`.\n",
     "skills/skill-discovery/SKILL.md": "---\nname: skill-discovery\ndescription: Discover and route to skills.\n---\n\n# Skill Discovery\n\nInspect the repository and route requests to the appropriate skill.\n",

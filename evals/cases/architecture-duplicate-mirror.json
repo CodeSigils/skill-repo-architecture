@@ -31,6 +31,13 @@
       "add a generated payload mirror solely for convenience"
     ]
   },
+  "grading": {
+    "recommendation_term_sets": [
+      ["duplicate"],
+      ["mirror", "remove"],
+      ["mirror", "canonical"]
+    ]
+  },
   "fixture_files": {
     "README.md": "# Example Skill\n\nThe canonical installable skill is `skills/example/`.\n",
     "skills/example/SKILL.md": "---\nname: example\ndescription: Explain example repositories.\n---\n\n# Example\n\nInspect the repository and summarize its structure.\n",

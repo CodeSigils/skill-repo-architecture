@@ -17,11 +17,13 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+
+from evidence_manifest import EvidenceManifest, load_evidence_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "docs" / "evidence-urls.json"
@@ -32,41 +34,7 @@ class UrlCheckResult:
     """Result of a single URL check."""
 
     status: int | str
-    redirects: int
     content: str | None
-
-
-def load_manifest(path: Path = MANIFEST_PATH) -> list[dict[str, Any]]:
-    """Load URL entries from the evidence manifest."""
-    try:
-        manifest = json.loads(path.read_text(encoding="utf-8"))
-    except OSError as exc:
-        raise SystemExit(f"FAIL: could not read {path}: {exc}") from exc
-    except json.JSONDecodeError as exc:
-        raise SystemExit(f"FAIL: invalid JSON in {path}: {exc}") from exc
-
-    urls = manifest.get("urls")
-    if not isinstance(urls, list):
-        raise SystemExit(f"FAIL: {path} must contain a top-level 'urls' list")
-    return urls
-
-
-def validate_entry(entry: dict[str, Any]) -> None:
-    """Validate one manifest entry before using it."""
-    required = ("name", "url", "expected_statuses")
-    missing = [key for key in required if key not in entry]
-    if missing:
-        raise ValueError(f"missing required field(s): {', '.join(missing)}")
-    if not isinstance(entry["expected_statuses"], list) or not entry["expected_statuses"]:
-        raise ValueError("expected_statuses must be a non-empty list")
-    for status in entry["expected_statuses"]:
-        if not isinstance(status, int):
-            raise TypeError("expected_statuses must contain integers")
-    if "monitor" in entry and not isinstance(entry["monitor"], bool):
-        raise ValueError("monitor must be a boolean")
-    required_text = entry.get("required_text", [])
-    if not isinstance(required_text, list) or not all(isinstance(anchor, str) and anchor for anchor in required_text):
-        raise ValueError("required_text must be a list of non-empty strings")
 
 
 def check_required_text(body: str, required_text: list[str]) -> str:
@@ -94,31 +62,31 @@ def check_url(
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
             status = response.status
-            redirect_count = (
-                len(response.headers.get("Location", "").split("\n")) if "Location" in response.headers else 0
-            )
-
+            body: str | None = None
             if content_type == "json" or required_text:
-                body = response.read().decode("utf-8")
-            if content_type == "json":
+                try:
+                    body = response.read().decode("utf-8")
+                except UnicodeDecodeError:
+                    return UrlCheckResult(status, "INVALID_ENCODING")
+            if content_type == "json" and body is not None:
                 try:
                     json.loads(body)
                 except (json.JSONDecodeError, ValueError):
-                    return UrlCheckResult(status, redirect_count, "INVALID_JSON")
-            if required_text:
-                return UrlCheckResult(status, redirect_count, check_required_text(body, required_text))
+                    return UrlCheckResult(status, "INVALID_JSON")
+            if required_text and body is not None:
+                return UrlCheckResult(status, check_required_text(body, required_text))
             if content_type == "json":
-                return UrlCheckResult(status, redirect_count, "VALID")
-            return UrlCheckResult(status, redirect_count, None)
+                return UrlCheckResult(status, "VALID")
+            return UrlCheckResult(status, None)
 
     except urllib.error.HTTPError as exc:
-        return UrlCheckResult(exc.code, 0, f"HTTP {exc.code}")
+        return UrlCheckResult(exc.code, f"HTTP {exc.code}")
     except urllib.error.URLError as exc:
-        return UrlCheckResult("ERROR", 0, str(exc.reason))
+        return UrlCheckResult("ERROR", str(exc.reason))
     except TimeoutError:
-        return UrlCheckResult("TIMEOUT", 0, "timeout")
+        return UrlCheckResult("TIMEOUT", "timeout")
     except ValueError as exc:
-        return UrlCheckResult("ERROR", 0, f"invalid URL: {exc}")
+        return UrlCheckResult("ERROR", f"invalid URL: {exc}")
 
 
 def classify_status(status: int | str, expected_statuses: list[int]) -> str:
@@ -141,45 +109,52 @@ def check_self_test() -> None:
     assert check_required_text("alpha beta", ["gamma"]) == "MISSING_ANCHOR"
     print("  PASS  check_required_text")
 
-    # Test validate_entry
-    try:
-        validate_entry({"name": "test", "url": "https://example.com", "expected_statuses": [200]})
-        print("  PASS  validate_entry valid")
-    except ValueError:
-        assert False, "should not fail"
+    # Test evidence manifest loading via the shared loader
+    with tempfile.TemporaryDirectory() as directory:
+        manifest_dir = Path(directory)
 
-    try:
-        validate_entry({"url": "https://example.com"})  # missing name
-        assert False, "should have failed"
-    except ValueError:
-        print("  PASS  validate_entry missing field")
+        def load_case(payload: object) -> EvidenceManifest:
+            manifest_path = manifest_dir / "manifest.json"
+            manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+            return load_evidence_manifest(manifest_path)
 
-    try:
-        validate_entry({"name": "test", "url": "https://example.com", "expected_statuses": []})
-        assert False, "should have failed"
-    except ValueError:
-        print("  PASS  validate_entry empty statuses")
+        base = {
+            "name": "example",
+            "url": "https://example.com",
+            "expected_statuses": [200],
+            "source_section": "README.md",
+            "status": "active",
+            "last_verified": "2026-07-29",
+        }
+        manifest = load_case({"urls": [base]})
+        assert len(manifest.entries) == 1
+        entry = manifest.entries[0]
+        assert entry.name == "example"
+        assert entry.monitor is True
+        assert entry.content_type is None
+        print("  PASS  evidence manifest valid")
 
-    try:
-        validate_entry({"name": "test", "url": "https://example.com", "expected_statuses": ["200"]})
-        assert False, "should have failed"
-    except TypeError:
-        print("  PASS  validate_entry non-int status")
-
-    for invalid in ({"monitor": "false"}, {"required_text": [""]}):
-        try:
-            validate_entry(
-                {
-                    "name": "test",
-                    "url": "https://example.com",
-                    "expected_statuses": [200],
-                    **invalid,
-                }
-            )
-            assert False, "should have failed"
-        except ValueError:
-            pass
-    print("  PASS  validate_entry semantic fields")
+        invalid_cases: list[tuple[str, object]] = [
+            ("non-object top level", ["not", "an", "object"]),
+            ("empty urls", {"urls": []}),
+            ("missing name", {"urls": [{k: v for k, v in base.items() if k != "name"}]}),
+            ("non-int status", {"urls": [{**base, "expected_statuses": [True]}]}),
+            ("non-http url", {"urls": [{**base, "url": "ftp://example.com"}]}),
+            ("non-bool monitor", {"urls": [{**base, "monitor": 0}]}),
+            ("non-str last_verified", {"urls": [{**base, "last_verified": 123}]}),
+            ("bad content_type", {"urls": [{**base, "content_type": "text"}]}),
+            (
+                "missing source_section",
+                {"urls": [{k: v for k, v in base.items() if k != "source_section"}]},
+            ),
+        ]
+        for label, payload in invalid_cases:
+            try:
+                load_case(payload)
+            except ValueError:
+                print(f"  PASS  evidence manifest rejects {label}")
+            else:
+                raise AssertionError(f"evidence manifest {label} must fail")
 
     print("  PASS  verify-urls.py self-tests")
 
@@ -189,35 +164,31 @@ def main() -> int:
         check_self_test()
         return 0
 
-    entries = load_manifest()
+    try:
+        manifest = load_evidence_manifest(MANIFEST_PATH)
+    except (OSError, ValueError) as exc:
+        print(f"FAIL: {exc}", file=sys.stderr)
+        return 1
 
     print("=== Evidence URL Re-verification ===")
-    print(f"{'Name':<30s} {'Status':<8s} {'Expected':<12s} {'Redirects':<9s} {'Content':<12s} {'Note':<10s}")
-    print("-" * 90)
+    print(f"{'Name':<30s} {'Status':<8s} {'Expected':<12s} {'Content':<16s} {'Note':<10s}")
+    print("-" * 82)
 
     drift_found = False
-    for entry in sorted(entries, key=lambda item: item["name"].lower()):
-        try:
-            validate_entry(entry)
-        except ValueError as exc:
-            print(f"  {entry.get('name', '<unnamed>'):<30s} {'-':<8s} {'-':<12s} {'-':<9s} {'-':<12s} MANIFEST: {exc}")
-            drift_found = True
+    for entry in sorted(manifest.entries, key=lambda item: item.name.casefold()):
+        if not entry.monitor:
+            print(f"  {entry.name:<30s} {'—':<8s} {'immutable':<12s} {'—':<16s} SKIPPED")
             continue
 
-        if entry.get("monitor", True) is False:
-            print(f"  {entry['name']:<30s} {'—':<8s} {'immutable':<12s} {'—':<9s} {'—':<12s} SKIPPED")
-            continue
-
-        content_type = entry.get("content_type")
-        result = check_url(entry["url"], content_type, entry.get("required_text"))
-        expected = entry["expected_statuses"]
+        result = check_url(entry.url, entry.content_type, list(entry.required_text))
+        expected = list(entry.expected_statuses)
         note = classify_status(result.status, expected)
         if note == "DRIFT":
             drift_found = True
 
         # Content check trumps status check for JSON endpoints
         content_label = result.content or "—"
-        if result.content in {"INVALID_JSON", "MISSING_ANCHOR"}:
+        if result.content in {"INVALID_ENCODING", "INVALID_JSON", "MISSING_ANCHOR"}:
             note = "BROKEN"
             drift_found = True
 
@@ -225,8 +196,8 @@ def main() -> int:
         marker = "  ← DRIFT" if note == "DRIFT" else ""
         marker = "  ← BROKEN" if note == "BROKEN" else marker
         print(
-            f"  {entry['name']:<30s} {result.status!s:<8s} {expected_text:<12s} "
-            f"{result.redirects!s:<9s} {content_label:<12s} {note:<10s}{marker}"
+            f"  {entry.name:<30s} {result.status!s:<8s} {expected_text:<12s} "
+            f"{content_label:<16s} {note:<10s}{marker}"
         )
 
     if drift_found:

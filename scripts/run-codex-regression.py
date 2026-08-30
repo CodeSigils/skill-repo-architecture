@@ -14,6 +14,8 @@ from pathlib import Path
 from time import monotonic
 from typing import Any
 
+from evaluation_contract import load_case_contract
+
 ROOT = Path(__file__).resolve().parents[1]
 SKILL_DIR = ROOT / "skills/repo-architecture-skill"
 POSITIVE_PROMPT = ROOT / "evals/codex/positive-prompt.md"
@@ -46,11 +48,6 @@ def run_checked(command: list[str], cwd: Path) -> None:
         raise RuntimeError(f"command failed ({' '.join(command)}): {detail}")
 
 
-def case_contract(case_id: str) -> dict[str, Any]:
-    """Load one shared evaluation case contract."""
-    return json.loads((CASE_DIR / f"{case_id}.json").read_text(encoding="utf-8"))
-
-
 def prepare_fixture(root: Path, case_id: str) -> None:
     """Create an isolated fixture from a shared case contract."""
     if root.exists():
@@ -58,9 +55,12 @@ def prepare_fixture(root: Path, case_id: str) -> None:
     installed = root / ".agents/skills/repo-architecture-skill"
     installed.parent.mkdir(parents=True)
     shutil.copytree(SKILL_DIR, installed)
-    files = case_contract(case_id)["fixture_files"]
-    for relative, content in files.items():
-        path = root / relative
+    contract = load_case_contract(CASE_DIR, case_id)
+    fixture_root = root.resolve()
+    for relative, content in contract.fixture_files.items():
+        path = (root / relative).resolve()
+        if not path.is_relative_to(fixture_root) or path == fixture_root:
+            raise ValueError(f"unsafe fixture path: {relative!r}")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
     run_checked(["git", "init", "-b", "main"], root)
@@ -252,6 +252,12 @@ def run_self_tests() -> int:
         summary = transcript_summary(transcript)
         assert summary["turn_completed"] is True
         assert summary["usage"]["input_tokens"] == 10
+        try:
+            load_case_contract(CASE_DIR, "../escape")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("unsafe case IDs must fail")
     print("PASS: run-codex-regression.py self-tests")
     return 0
 
@@ -334,7 +340,9 @@ def main() -> int:
                 f"codex version mismatch: expected {args.expected_codex_version!r}, "
                 f"observed {observed_version!r}"
             )
-        if fixture is None:
+        if fixture is None and args.prepare_only:
+            fixture = output_dir / "fixture"
+        elif fixture is None:
             temporary = tempfile.TemporaryDirectory(prefix="repo-architecture-eval-")
             fixture = Path(temporary.name) / "fixture"
         prepare_fixture(fixture, args.case_id)
@@ -364,7 +372,7 @@ def main() -> int:
         summary["status"] = summary["grade"]["status"]
         exit_code = grade_code
         print(f"Codex evaluation artifacts: {output_dir}")
-    except (FileExistsError, OSError, RuntimeError) as exc:
+    except (FileExistsError, OSError, RuntimeError, TypeError, ValueError) as exc:
         summary["status"] = "failed"
         summary["error"] = str(exc)
         print(f"ERROR: {exc}", file=sys.stderr)
