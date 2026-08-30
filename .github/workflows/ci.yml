@@ -8,9 +8,11 @@ on:
     branches: [main]
     paths:
       - ".github/**"
+      - ".githooks/**"
       - ".gitignore"
       - "AGENTS.md"
       - "CITATION.cff"
+      - "LICENSE"
       - "README.md"
       - "SECURITY.md"
       - "docs/**"
@@ -23,9 +25,11 @@ on:
     branches: [main]
     paths:
       - ".github/**"
+      - ".githooks/**"
       - ".gitignore"
       - "AGENTS.md"
       - "CITATION.cff"
+      - "LICENSE"
       - "README.md"
       - "SECURITY.md"
       - "docs/**"

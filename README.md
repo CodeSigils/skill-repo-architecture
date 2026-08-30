@@ -182,16 +182,21 @@ repo-architecture-skill/
 │   ├── dependabot.yml           # uv and action update automation
 │   └── workflows/ci.yml
 ├── docs/
-│   ├── evidence-urls.json       # external monitoring contract
-│   ├── compatibility/           # named-runtime reports; not shipped
-│   ├── portability-contract.md  # compatibility evidence levels and status
-│   └── research/                # dated maintainer evidence; not shipped
+│   ├── behavioral-evaluation.md    # evaluation methodology and adoption evidence
+│   ├── compatibility/              # named-runtime reports; not shipped
+│   ├── evaluation-adoption-ledger.yaml  # evaluation tracking
+│   ├── evidence-urls.json          # external monitoring contract
+│   ├── portability-contract.md     # compatibility evidence levels and status
+│   └── research/                   # dated maintainer evidence; not shipped
 ├── evals/
-│   └── cases/
-│       └── architecture-audit.json
+│   ├── cases/                       # shared behavioral fixture contracts
+│   └── codex/                       # optional model-regression prompts and schema
 ├── scripts/
-│   ├── validate.py              # deterministic schema/link/fixture checks
-│   └── verify-urls.py           # scheduled external monitoring
+│   ├── check-expiry.py             # Scans for expired doc and config references
+│   ├── grade-codex-regression.py   # Grades Codex regression artifacts
+│   ├── run-codex-regression.py     # Runs isolated Codex skill regressions
+│   ├── validate.py                 # deterministic schema/link/fixture checks
+│   └── verify-urls.py             # scheduled external monitoring
 └── skills/
     └── repo-architecture-skill/ # canonical runtime payload
         ├── SKILL.md
