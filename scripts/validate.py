@@ -269,6 +269,11 @@ def validate_security_contract() -> None:
     workflow_env = object_mapping(workflow.get("env"), f"{CI}: env")
     if workflow_env.get("PYTHON_VERSION") != "3.13":
         fail(f"{CI}: PYTHON_VERSION must be 3.13")
+    concurrency = object_mapping(workflow.get("concurrency"), f"{CI}: concurrency")
+    if concurrency.get("group") != "${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}":
+        fail(f"{CI}: concurrency group must keep event types independent")
+    if concurrency.get("cancel-in-progress") != "true":
+        fail(f"{CI}: concurrency must cancel superseded runs")
     jobs = object_mapping(workflow.get("jobs"), f"{CI}: jobs")
     required_jobs = {"deterministic", "monitor-external-contracts"}
     if not required_jobs <= jobs.keys():
@@ -309,13 +314,22 @@ def validate_security_contract() -> None:
     if monitor_job.get("if") != "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'":
         fail(f"{CI}: external monitoring must be limited to schedule and manual dispatch")
     monitor_steps = [
-        object_mapping(step, f"{CI}: monitor step")
-        for step in monitor_job["steps"]
-        if isinstance(step, dict)
+        object_mapping(step, f"{CI}: monitor step") for step in monitor_job["steps"] if isinstance(step, dict)
     ]
     freshness_steps = [step for step in monitor_steps if step.get("run") == "python3 scripts/check-expiry.py"]
     if len(freshness_steps) != 1 or freshness_steps[0].get("if") != "${{ !cancelled() }}":
         fail(f"{CI}: scheduled freshness must run independently after URL monitoring")
+
+    deterministic_job = object_mapping(jobs["deterministic"], f"{CI}: deterministic job")
+    deterministic_steps = [
+        object_mapping(step, f"{CI}: deterministic step")
+        for step in deterministic_job["steps"]
+        if isinstance(step, dict)
+    ]
+    if not any(
+        step.get("run") == "uv run --locked ruff format --check scripts .github/scripts" for step in deterministic_steps
+    ):
+        fail(f"{CI}: deterministic checks must enforce maintainer script formatting")
 
     dependabot = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))
     if not isinstance(dependabot, dict) or not isinstance(dependabot.get("updates"), list):
@@ -504,7 +518,7 @@ def validate_codex_eval() -> None:
         contract = load_case_contract(ROOT / "evals/cases", case_id)
         if contract.archetype not in ARCHETYPES:
             fail(f"evals/cases/{case_id}.json: unknown archetype {contract.archetype!r}")
-        if contract.boundaries != BOUNDARIES:
+        if set(contract.boundaries) != BOUNDARIES:
             fail(f"evals/cases/{case_id}.json: boundaries must match the behavioral contract")
 
 

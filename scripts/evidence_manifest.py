@@ -88,9 +88,7 @@ def load_evidence_manifest(path: Path) -> EvidenceManifest:
             problems.append(f"{context}: expected an object")
             continue
         missing = [
-            key
-            for key in ("name", "url", "expected_statuses", "source_section", "status")
-            if key not in raw_entry
+            key for key in ("name", "url", "expected_statuses", "source_section", "status") if key not in raw_entry
         ]
         if missing:
             problems.append(f"{context}: missing required field(s): {', '.join(missing)}")
@@ -115,9 +113,7 @@ def load_evidence_manifest(path: Path) -> EvidenceManifest:
         expected_statuses: object = raw_entry["expected_statuses"]
         if not isinstance(expected_statuses, list) or not expected_statuses:
             problems.append(f"{context}: expected_statuses must be a non-empty list")
-        elif not all(
-            type(status) is int and 100 <= status <= 599 for status in expected_statuses
-        ):
+        elif not all(type(status) is int and 100 <= status <= 599 for status in expected_statuses):
             problems.append(f"{context}: expected_statuses must contain HTTP status integers")
         else:
             statuses = tuple(expected_statuses)

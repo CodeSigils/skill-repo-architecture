@@ -215,8 +215,7 @@ def main() -> int:
         marker = "  ← DRIFT" if note == "DRIFT" else ""
         marker = "  ← BROKEN" if note == "BROKEN" else marker
         print(
-            f"  {entry.name:<30s} {result.status!s:<8s} {expected_text:<12s} "
-            f"{content_label:<16s} {note:<10s}{marker}"
+            f"  {entry.name:<30s} {result.status!s:<8s} {expected_text:<12s} {content_label:<16s} {note:<10s}{marker}"
         )
 
     if drift_found:

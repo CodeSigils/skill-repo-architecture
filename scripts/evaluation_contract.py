@@ -17,7 +17,7 @@ class CaseContract:
     case_id: str
     fixture_files: dict[str, str]
     archetype: str
-    boundaries: frozenset[str]
+    boundaries: dict[str, str]
     recommendation_term_sets: tuple[tuple[str, ...], ...]
 
 
@@ -78,7 +78,11 @@ def load_case_contract(case_dir: Path, case_id: str) -> CaseContract:
         raise TypeError(f"{path}: grading.recommendation_term_sets must be a non-empty list")
     term_sets: list[tuple[str, ...]] = []
     for index, raw_terms in enumerate(raw_term_sets):
-        if not isinstance(raw_terms, list) or not raw_terms or not all(isinstance(term, str) and term for term in raw_terms):
+        if (
+            not isinstance(raw_terms, list)
+            or not raw_terms
+            or not all(isinstance(term, str) and term for term in raw_terms)
+        ):
             raise TypeError(f"{path}: recommendation_term_sets[{index}] must contain non-empty strings")
         term_sets.append(tuple(term.casefold() for term in raw_terms))
 
@@ -86,6 +90,6 @@ def load_case_contract(case_dir: Path, case_id: str) -> CaseContract:
         case_id=case_id,
         fixture_files=fixture_files,
         archetype=archetype,
-        boundaries=frozenset(boundaries),
+        boundaries=boundaries,
         recommendation_term_sets=tuple(term_sets),
     )

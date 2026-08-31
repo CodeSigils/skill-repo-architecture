@@ -5,6 +5,7 @@ config paths, and directory patterns that would silently break non-Hermes
 agents (Claude Code, Codex CLI, Gemini CLI, OpenCode, Cursor).
 
 """
+
 from __future__ import annotations
 
 import re

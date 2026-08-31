@@ -48,9 +48,7 @@ def timestamp(value: datetime) -> str:
 
 
 def run_checked(command: list[str], cwd: Path) -> None:
-    result = subprocess.run(
-        command, cwd=cwd, capture_output=True, text=True, check=False
-    )
+    result = subprocess.run(command, cwd=cwd, capture_output=True, text=True, check=False)
     if result.returncode:
         detail = result.stderr.strip() or result.stdout.strip()
         raise RuntimeError(f"command failed ({' '.join(command)}): {detail}")
@@ -73,9 +71,7 @@ def prepare_fixture(root: Path, case_id: str) -> None:
         path.write_text(content, encoding="utf-8")
     run_checked(["git", "init", "-b", "main"], root)
     run_checked(["git", "config", "user.name", "Codex Eval"], root)
-    run_checked(
-        ["git", "config", "user.email", "codex-eval@example.invalid"], root
-    )
+    run_checked(["git", "config", "user.email", "codex-eval@example.invalid"], root)
     run_checked(["git", "config", "commit.gpgsign", "false"], root)
     run_checked(["git", "add", "."], root)
     run_checked(["git", "commit", "-m", "feat: add example skill"], root)
@@ -223,9 +219,7 @@ def run_self_tests() -> int:
         fixture = Path(directory) / "fixture"
         prepare_fixture(fixture, "architecture-duplicate-mirror")
         assert (fixture / ".agents/skills/repo-architecture-skill/SKILL.md").is_file()
-        assert (fixture / "SKILL.md").read_bytes() == (
-            fixture / "skills/example/SKILL.md"
-        ).read_bytes()
+        assert (fixture / "SKILL.md").read_bytes() == (fixture / "skills/example/SKILL.md").read_bytes()
         assert (
             subprocess.run(
                 ["git", "status", "--short"],
@@ -236,9 +230,7 @@ def run_self_tests() -> int:
             ).stdout
             == ""
         )
-        command = codex_command(
-            "codex", fixture, POSITIVE_PROMPT, fixture / "result.json", RESULT_SCHEMA
-        )
+        command = codex_command("codex", fixture, POSITIVE_PROMPT, fixture / "result.json", RESULT_SCHEMA)
         assert command[-3:-1] == ["--output-schema", str(RESULT_SCHEMA)]
         assert json.loads(RESULT_SCHEMA.read_text(encoding="utf-8"))["type"] == "object"
         transcript = Path(directory) / "complete.jsonl"
@@ -306,9 +298,7 @@ def main() -> int:
     started = datetime.now(UTC)
     clock = monotonic()
     run_id = started.strftime("%Y%m%dT%H%M%SZ")
-    output_dir = (
-        args.output_dir or ROOT / "artifacts/codex-regression" / run_id
-    ).resolve()
+    output_dir = (args.output_dir or ROOT / "artifacts/codex-regression" / run_id).resolve()
     environment = os.environ.copy()
     codex_home = None
     if args.codex_home:
@@ -356,8 +346,7 @@ def main() -> int:
             observed_version is None or args.expected_codex_version not in observed_version
         ):
             raise RuntimeError(
-                f"codex version mismatch: expected {args.expected_codex_version!r}, "
-                f"observed {observed_version!r}"
+                f"codex version mismatch: expected {args.expected_codex_version!r}, observed {observed_version!r}"
             )
         if fixture is None and args.prepare_only:
             fixture = output_dir / "fixture"
@@ -401,9 +390,7 @@ def main() -> int:
         summary["duration_seconds"] = round(monotonic() - clock, 3)
         if not args.prepare_only:
             output_dir.mkdir(parents=True, exist_ok=True)
-            (output_dir / "run-summary.json").write_text(
-                json.dumps(summary, indent=2) + "\n", encoding="utf-8"
-            )
+            (output_dir / "run-summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
         if temporary:
             temporary.cleanup()
     return exit_code

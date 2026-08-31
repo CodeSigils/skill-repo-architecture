@@ -46,7 +46,7 @@ env:
   PYTHON_VERSION: "3.13"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -83,6 +83,8 @@ jobs:
         run: uv run --locked python scripts/check-expiry.py
       - name: Lint maintainer scripts
         run: uv run --locked ruff check scripts .github/scripts
+      - name: Check maintainer script formatting
+        run: uv run --locked ruff format --check scripts .github/scripts
 
   monitor-external-contracts:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from evaluation_contract import load_case_contract
+from evaluation_contract import fixture_path_is_safe, load_case_contract
 
 ROOT = Path(__file__).resolve().parents[1]
 CASE_DIR = ROOT / "evals/cases"
@@ -30,6 +30,15 @@ def read_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def has_fixture_evidence(value: object, fixture_files: dict[str, str]) -> bool:
+    """Return whether value is a non-empty list of declared fixture evidence paths."""
+    return (
+        isinstance(value, list)
+        and bool(value)
+        and all(isinstance(path, str) and fixture_path_is_safe(path) and path in fixture_files for path in value)
+    )
+
+
 def grade_positive(result: dict[str, Any], case_id: str = "architecture-duplicate-mirror") -> list[str]:
     errors: list[str] = []
     contract = load_case_contract(CASE_DIR, case_id)
@@ -40,9 +49,7 @@ def grade_positive(result: dict[str, Any], case_id: str = "architecture-duplicat
     if result["case_id"] != case_id:
         errors.append("positive result has the wrong case_id")
     skills = result.get("skills_used")
-    if not isinstance(skills, list) or not any(
-        "repo-architecture-skill" in str(item) for item in skills
-    ):
+    if not isinstance(skills, list) or "repo-architecture-skill" not in skills:
         errors.append("repo-architecture-skill was not selected")
     if result.get("changed_paths") != []:
         errors.append("read-only audit must not report changed paths")
@@ -56,27 +63,25 @@ def grade_positive(result: dict[str, Any], case_id: str = "architecture-duplicat
     if classification.get("archetype") != contract.archetype:
         errors.append(f"fixture was not classified as {contract.archetype}")
     boundaries = classification.get("boundaries")
-    if not isinstance(boundaries, dict) or set(boundaries) != contract.boundaries:
+    if boundaries != contract.boundaries:
         errors.append("classification does not map all four boundaries")
     evidence = classification.get("evidence_paths")
-    if not isinstance(evidence, list) or not evidence:
-        errors.append("classification lacks repository-relative evidence")
+    if not has_fixture_evidence(evidence, contract.fixture_files):
+        errors.append("classification lacks declared fixture evidence")
 
     recommendations = result.get("recommendations")
     if not isinstance(recommendations, list) or not recommendations:
         errors.append("audit lacks recommendations")
         return errors
     combined = " ".join(
-        str(item.get("recommendation", ""))
-        for item in recommendations
-        if isinstance(item, dict)
+        str(item.get("recommendation", "")) for item in recommendations if isinstance(item, dict)
     ).casefold()
     if not any(all(term in combined for term in term_set) for term_set in contract.recommendation_term_sets):
         errors.append("audit does not address the case contract's required recommendation")
     for index, item in enumerate(recommendations):
         paths = item.get("evidence_paths") if isinstance(item, dict) else None
-        if not isinstance(paths, list) or not paths:
-            errors.append(f"recommendation {index} lacks evidence paths")
+        if not has_fixture_evidence(paths, contract.fixture_files):
+            errors.append(f"recommendation {index} lacks declared fixture evidence")
     return errors
 
 
@@ -106,10 +111,10 @@ def run_self_tests() -> int:
         "classification": {
             "archetype": "markdown-only-skill",
             "boundaries": {
-                "authoring_source": "skills/example",
-                "runtime_payload": "skills/example",
+                "authoring_source": "skills/example/",
+                "runtime_payload": "skills/example/",
                 "install_artifact": "copied skill directory",
-                "maintainer_infrastructure": "tests and CI",
+                "maintainer_infrastructure": "README.md and repository metadata",
             },
             "evidence_paths": ["skills/example/SKILL.md"],
         },
@@ -124,6 +129,16 @@ def run_self_tests() -> int:
     failing = json.loads(json.dumps(passing))
     failing["classification"]["boundaries"].pop("runtime_payload")
     assert any("four boundaries" in error for error in grade_positive(failing))
+    fabricated = json.loads(json.dumps(passing))
+    fabricated["skills_used"] = ["not-repo-architecture-skill"]
+    fabricated["classification"]["boundaries"]["authoring_source"] = "invented/source"
+    fabricated["classification"]["evidence_paths"] = ["invented-evidence.md"]
+    fabricated["recommendations"][0]["evidence_paths"] = ["invented-recommendation.md"]
+    errors = grade_positive(fabricated)
+    assert "repo-architecture-skill was not selected" in errors
+    assert "classification does not map all four boundaries" in errors
+    assert "classification lacks declared fixture evidence" in errors
+    assert "recommendation 0 lacks declared fixture evidence" in errors
     assert grade_negative("Use split('=', 1) in parser.py.") == []
     assert grade_negative("Run repo-architecture-skill and map the runtime payload.")
     print("PASS: grade-codex-regression.py self-tests")

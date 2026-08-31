@@ -260,6 +260,7 @@ uv run --locked python scripts/verify-urls.py --self-test
 uv run --locked python scripts/check-expiry.py --self-test
 uv run --locked python scripts/check-expiry.py
 uv run --locked ruff check scripts .github/scripts
+uv run --locked ruff format --check scripts .github/scripts
 ```
 
 External URL checks are intentionally separate because they depend on network

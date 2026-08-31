@@ -10,7 +10,7 @@ from pathlib import Path
 from evidence_manifest import load_evidence_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPIRES_RE = re.compile(r"^\*\*Expires:\*\* (?P<date>\d{4}-\d{2}-\d{2})$", re.MULTILINE)
+EXPIRES_RE = re.compile(r"^\*\*Expires:\*\*(?: (?P<date>.*))?$", re.MULTILINE)
 LAST_REVIEWED_RE = re.compile(r"^Last reviewed: (?P<date>\d{4}-\d{2}-\d{2})\.$", re.MULTILINE)
 SECURITY_REVIEW_MAX_AGE_DAYS = 365
 EXTERNAL_EVIDENCE_MAX_AGE_DAYS = 90
@@ -33,14 +33,23 @@ def age_in_days(value: date, today: date, context: str, problems: list[str]) -> 
     return age
 
 
+def check_expiry_markers(text: str, context: str, today: date, problems: list[str]) -> None:
+    """Validate expiry markers in one document."""
+    for match in EXPIRES_RE.finditer(text):
+        value = match.group("date")
+        if value is None:
+            problems.append(f"{context}: invalid expiry marker")
+            continue
+        expiry = parse_date(value, context, problems)
+        if expiry is not None and expiry < today:
+            problems.append(f"{context}: expired {expiry.isoformat()}")
+
+
 def check_explicit_expiries(today: date, problems: list[str]) -> None:
     paths = [*ROOT.glob("*.md"), *(ROOT / "docs").rglob("*.md"), *(ROOT / "skills").rglob("*.md")]
     for path in sorted(set(paths)):
         text = path.read_text(encoding="utf-8")
-        for match in EXPIRES_RE.finditer(text):
-            expiry = parse_date(match.group("date"), str(path.relative_to(ROOT)), problems)
-            if expiry is not None and expiry < today:
-                problems.append(f"{path.relative_to(ROOT)}: expired {expiry.isoformat()}")
+        check_expiry_markers(text, str(path.relative_to(ROOT)), today, problems)
 
 
 def check_security_review(today: date, problems: list[str]) -> None:
@@ -86,6 +95,15 @@ def run_self_tests() -> int:
     assert problems == []
     assert age_in_days(date(2026, 8, 31), today, "test", problems) is None
     assert problems == ["test: date 2026-08-31 is in the future"]
+    assert EXPIRES_RE.search("**Expires:** TBD") is not None
+    assert EXPIRES_RE.search("**Expires:** 2026-08-30") is not None
+    expiry_problems: list[str] = []
+    check_expiry_markers("**Expires:** TBD", "test.md", today, expiry_problems)
+    check_expiry_markers("**Expires:**", "test.md", today, expiry_problems)
+    assert expiry_problems == [
+        "test.md: invalid date 'TBD'",
+        "test.md: invalid expiry marker",
+    ]
     print("PASS: check-expiry.py self-tests")
     return 0
 
