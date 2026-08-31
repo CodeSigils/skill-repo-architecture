@@ -15,6 +15,9 @@ from urllib.parse import urlsplit
 
 from evaluation_contract import object_mapping
 
+EVIDENCE_SCHEMA_VERSION = 3
+EVIDENCE_STATUSES = frozenset({"active", "retired"})
+
 
 @dataclass(frozen=True)
 class EvidenceEntry:
@@ -65,8 +68,8 @@ def load_evidence_manifest(path: Path) -> EvidenceManifest:
         raise ValueError(str(exc)) from exc
 
     version = data.get("version")
-    if version is not None and type(version) is not int:
-        problems.append(f"{path}: version must be an integer")
+    if type(version) is not int or version != EVIDENCE_SCHEMA_VERSION:
+        problems.append(f"{path}: version must be {EVIDENCE_SCHEMA_VERSION}")
     description = data.get("description")
     if description is not None and not isinstance(description, str):
         problems.append(f"{path}: description must be a string")
@@ -77,6 +80,8 @@ def load_evidence_manifest(path: Path) -> EvidenceManifest:
         raise ValueError("\n".join(problems))
 
     entries: list[EvidenceEntry] = []
+    seen_names: set[str] = set()
+    seen_urls: set[str] = set()
     for index, raw_entry in enumerate(raw_urls):
         context = f"{path}: urls[{index}]"
         if not isinstance(raw_entry, dict):
@@ -94,8 +99,17 @@ def load_evidence_manifest(path: Path) -> EvidenceManifest:
         name = raw_entry["name"]
         if not isinstance(name, str) or not name:
             problems.append(f"{context}: name must be a non-empty string")
-        if not _absolute_http_url(raw_entry["url"]):
+        elif name.casefold() in seen_names:
+            problems.append(f"{context}: duplicate name {name!r}")
+        else:
+            seen_names.add(name.casefold())
+        url = raw_entry["url"]
+        if not _absolute_http_url(url):
             problems.append(f"{context}: url must be an absolute HTTP(S) URL")
+        elif url in seen_urls:
+            problems.append(f"{context}: duplicate url {url!r}")
+        else:
+            seen_urls.add(url)
 
         statuses: tuple[int, ...] = ()
         expected_statuses: object = raw_entry["expected_statuses"]
@@ -139,8 +153,10 @@ def load_evidence_manifest(path: Path) -> EvidenceManifest:
             problems.append(f"{context}: source_section must be a non-empty string")
 
         status = raw_entry["status"]
-        if not isinstance(status, str) or not status:
-            problems.append(f"{context}: status must be a non-empty string")
+        if not isinstance(status, str) or status not in EVIDENCE_STATUSES:
+            problems.append(f"{context}: status must be one of {sorted(EVIDENCE_STATUSES)}")
+        if status == "retired" and monitor:
+            problems.append(f"{context}: retired entries must set monitor to false")
 
         last_verified: str | None = None
         if "last_verified" in raw_entry:
@@ -161,7 +177,7 @@ def load_evidence_manifest(path: Path) -> EvidenceManifest:
         entries.append(
             EvidenceEntry(
                 name=name,
-                url=raw_entry["url"],
+                url=url,
                 expected_statuses=statuses,
                 monitor=monitor,
                 content_type=content_type,

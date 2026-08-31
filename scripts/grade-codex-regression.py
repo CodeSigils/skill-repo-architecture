@@ -53,8 +53,8 @@ def grade_positive(result: dict[str, Any], case_id: str = "architecture-duplicat
     if not isinstance(classification, dict):
         errors.append("classification is missing")
         return errors
-    if classification.get("archetype") != "markdown-only-skill":
-        errors.append("fixture was not classified as markdown-only-skill")
+    if classification.get("archetype") != contract.archetype:
+        errors.append(f"fixture was not classified as {contract.archetype}")
     boundaries = classification.get("boundaries")
     if not isinstance(boundaries, dict) or set(boundaries) != contract.boundaries:
         errors.append("classification does not map all four boundaries")
@@ -70,7 +70,7 @@ def grade_positive(result: dict[str, Any], case_id: str = "architecture-duplicat
         str(item.get("recommendation", ""))
         for item in recommendations
         if isinstance(item, dict)
-    ).lower()
+    ).casefold()
     if not any(all(term in combined for term in term_set) for term_set in contract.recommendation_term_sets):
         errors.append("audit does not address the case contract's required recommendation")
     for index, item in enumerate(recommendations):
@@ -148,9 +148,13 @@ def main() -> int:
     except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
         errors = [f"cannot read evaluation artifacts: {exc}"]
     report = {"passed": not errors, "errors": errors}
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    try:
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        print(f"ERROR: cannot write grade report: {exc}", file=sys.stderr)
+        return 1
     for error in errors:
         print(f"ERROR: {error}", file=sys.stderr)
     if errors:

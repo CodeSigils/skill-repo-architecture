@@ -22,11 +22,13 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from evidence_manifest import EvidenceManifest, load_evidence_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "docs" / "evidence-urls.json"
+MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -65,7 +67,10 @@ def check_url(
             body: str | None = None
             if content_type == "json" or required_text:
                 try:
-                    body = response.read().decode("utf-8")
+                    payload = response.read(MAX_RESPONSE_BYTES + 1)
+                    if len(payload) > MAX_RESPONSE_BYTES:
+                        return UrlCheckResult(status, "CONTENT_TOO_LARGE")
+                    body = payload.decode("utf-8")
                 except UnicodeDecodeError:
                     return UrlCheckResult(status, "INVALID_ENCODING")
             if content_type == "json" and body is not None:
@@ -109,6 +114,14 @@ def check_self_test() -> None:
     assert check_required_text("alpha beta", ["gamma"]) == "MISSING_ANCHOR"
     print("  PASS  check_required_text")
 
+    oversized_response = MagicMock()
+    oversized_response.__enter__.return_value = oversized_response
+    oversized_response.status = 200
+    oversized_response.read.return_value = b"x" * (MAX_RESPONSE_BYTES + 1)
+    with patch("urllib.request.urlopen", return_value=oversized_response):
+        assert check_url("https://example.com", required_text=["anchor"]).content == "CONTENT_TOO_LARGE"
+    print("  PASS  bounded response reading")
+
     # Test evidence manifest loading via the shared loader
     with tempfile.TemporaryDirectory() as directory:
         manifest_dir = Path(directory)
@@ -126,7 +139,7 @@ def check_self_test() -> None:
             "status": "active",
             "last_verified": "2026-07-29",
         }
-        manifest = load_case({"urls": [base]})
+        manifest = load_case({"version": 3, "urls": [base]})
         assert len(manifest.entries) == 1
         entry = manifest.entries[0]
         assert entry.name == "example"
@@ -136,16 +149,22 @@ def check_self_test() -> None:
 
         invalid_cases: list[tuple[str, object]] = [
             ("non-object top level", ["not", "an", "object"]),
-            ("empty urls", {"urls": []}),
-            ("missing name", {"urls": [{k: v for k, v in base.items() if k != "name"}]}),
-            ("non-int status", {"urls": [{**base, "expected_statuses": [True]}]}),
-            ("non-http url", {"urls": [{**base, "url": "ftp://example.com"}]}),
-            ("non-bool monitor", {"urls": [{**base, "monitor": 0}]}),
-            ("non-str last_verified", {"urls": [{**base, "last_verified": 123}]}),
-            ("bad content_type", {"urls": [{**base, "content_type": "text"}]}),
+            ("missing version", {"urls": [base]}),
+            ("non-integer version", {"version": 3.0, "urls": [base]}),
+            ("empty urls", {"version": 3, "urls": []}),
+            ("missing name", {"version": 3, "urls": [{k: v for k, v in base.items() if k != "name"}]}),
+            ("non-int status", {"version": 3, "urls": [{**base, "expected_statuses": [True]}]}),
+            ("non-http url", {"version": 3, "urls": [{**base, "url": "ftp://example.com"}]}),
+            ("non-bool monitor", {"version": 3, "urls": [{**base, "monitor": 0}]}),
+            ("unknown status", {"version": 3, "urls": [{**base, "status": "acitve"}]}),
+            ("monitored retired entry", {"version": 3, "urls": [{**base, "status": "retired"}]}),
+            ("duplicate name", {"version": 3, "urls": [base, {**base, "url": "https://example.org"}]}),
+            ("duplicate url", {"version": 3, "urls": [base, {**base, "name": "second"}]}),
+            ("non-str last_verified", {"version": 3, "urls": [{**base, "last_verified": 123}]}),
+            ("bad content_type", {"version": 3, "urls": [{**base, "content_type": "text"}]}),
             (
                 "missing source_section",
-                {"urls": [{k: v for k, v in base.items() if k != "source_section"}]},
+                {"version": 3, "urls": [{k: v for k, v in base.items() if k != "source_section"}]},
             ),
         ]
         for label, payload in invalid_cases:
@@ -176,7 +195,7 @@ def main() -> int:
 
     drift_found = False
     for entry in sorted(manifest.entries, key=lambda item: item.name.casefold()):
-        if not entry.monitor:
+        if entry.status != "active" or not entry.monitor:
             print(f"  {entry.name:<30s} {'—':<8s} {'immutable':<12s} {'—':<16s} SKIPPED")
             continue
 
@@ -188,7 +207,7 @@ def main() -> int:
 
         # Content check trumps status check for JSON endpoints
         content_label = result.content or "—"
-        if result.content in {"INVALID_ENCODING", "INVALID_JSON", "MISSING_ANCHOR"}:
+        if result.content in {"CONTENT_TOO_LARGE", "INVALID_ENCODING", "INVALID_JSON", "MISSING_ANCHOR"}:
             note = "BROKEN"
             drift_found = True
 

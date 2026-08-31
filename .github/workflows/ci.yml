@@ -98,4 +98,5 @@ jobs:
       - name: Verify external URL contracts
         run: python3 scripts/verify-urls.py
       - name: Check expired freshness markers
+        if: ${{ !cancelled() }}
         run: python3 scripts/check-expiry.py

@@ -16,6 +16,7 @@ class CaseContract:
 
     case_id: str
     fixture_files: dict[str, str]
+    archetype: str
     boundaries: frozenset[str]
     recommendation_term_sets: tuple[tuple[str, ...], ...]
 
@@ -30,7 +31,13 @@ def object_mapping(value: object, context: str) -> dict[str, object]:
 def fixture_path_is_safe(value: str) -> bool:
     """Return whether a fixture path is a normalized repository-relative POSIX path."""
     path = PurePosixPath(value)
-    return bool(value) and not path.is_absolute() and ".." not in path.parts and "\\" not in value
+    return (
+        value not in {"", "."}
+        and value == path.as_posix()
+        and not path.is_absolute()
+        and ".." not in path.parts
+        and "\\" not in value
+    )
 
 
 def load_case_contract(case_dir: Path, case_id: str) -> CaseContract:
@@ -47,6 +54,8 @@ def load_case_contract(case_dir: Path, case_id: str) -> CaseContract:
         raise ValueError(f"{path}: case_id must be {case_id!r}")
 
     raw_files = object_mapping(data.get("fixture_files"), f"{path}: fixture_files")
+    if not raw_files:
+        raise ValueError(f"{path}: fixture_files must not be empty")
     fixture_files: dict[str, str] = {}
     for relative, content in raw_files.items():
         if not fixture_path_is_safe(relative):
@@ -56,9 +65,12 @@ def load_case_contract(case_dir: Path, case_id: str) -> CaseContract:
         fixture_files[relative] = content
 
     expected = object_mapping(data.get("expected"), f"{path}: expected")
+    archetype = expected.get("archetype")
+    if not isinstance(archetype, str) or not archetype:
+        raise TypeError(f"{path}: expected.archetype must be a non-empty string")
     boundaries = object_mapping(expected.get("boundaries"), f"{path}: expected.boundaries")
-    if not boundaries:
-        raise ValueError(f"{path}: expected.boundaries must not be empty")
+    if not boundaries or not all(isinstance(value, str) and value for value in boundaries.values()):
+        raise ValueError(f"{path}: expected.boundaries must contain non-empty string values")
 
     grading = object_mapping(data.get("grading"), f"{path}: grading")
     raw_term_sets = grading.get("recommendation_term_sets")
@@ -73,6 +85,7 @@ def load_case_contract(case_dir: Path, case_id: str) -> CaseContract:
     return CaseContract(
         case_id=case_id,
         fixture_files=fixture_files,
+        archetype=archetype,
         boundaries=frozenset(boundaries),
         recommendation_term_sets=tuple(term_sets),
     )

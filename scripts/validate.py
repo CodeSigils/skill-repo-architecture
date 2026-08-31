@@ -60,6 +60,7 @@ BOUNDARIES = {
 }
 LINK_RE = re.compile(r"(?<!!)\[[^]]+\]\(([^)]+)\)")
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+PINNED_ACTION_RE = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 EXPECTED_REFERENCES = {
     "dev-workflow-patterns.md",
     "file-swamp-patterns.md",
@@ -260,16 +261,61 @@ def validate_security_contract() -> None:
         if rule not in ignored:
             fail(f"{GITIGNORE}: missing local-secret rule {rule!r}")
 
-    workflow = CI.read_text(encoding="utf-8")
-    if workflow.count("persist-credentials: false") < 2:
-        fail(f"{CI}: every checkout must disable persisted credentials")
-    if workflow.count("timeout-minutes:") < 2 or "permissions:\n  contents: read" not in workflow:
-        fail(f"{CI}: jobs need timeouts and read-only repository permissions")
-    if (
-        'env:\n  PYTHON_VERSION: "3.13"' not in workflow
-        or workflow.count("python-version: ${{ env.PYTHON_VERSION }}") != 2
-    ):
-        fail(f"{CI}: both jobs must use the shared Python version")
+    workflow_raw: object = yaml.load(CI.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+    workflow = object_mapping(workflow_raw, str(CI))
+    permissions = object_mapping(workflow.get("permissions"), f"{CI}: permissions")
+    if permissions.get("contents") != "read":
+        fail(f"{CI}: workflow permissions must restrict contents to read")
+    workflow_env = object_mapping(workflow.get("env"), f"{CI}: env")
+    if workflow_env.get("PYTHON_VERSION") != "3.13":
+        fail(f"{CI}: PYTHON_VERSION must be 3.13")
+    jobs = object_mapping(workflow.get("jobs"), f"{CI}: jobs")
+    required_jobs = {"deterministic", "monitor-external-contracts"}
+    if not required_jobs <= jobs.keys():
+        fail(f"{CI}: missing required jobs {sorted(required_jobs - jobs.keys())}")
+    for job_name, raw_job in jobs.items():
+        job = object_mapping(raw_job, f"{CI}: jobs.{job_name}")
+        if "permissions" in job:
+            fail(f"{CI}: jobs.{job_name} must not override workflow permissions")
+        timeout = job.get("timeout-minutes")
+        if not isinstance(timeout, str) or not timeout.isdigit() or int(timeout) <= 0:
+            fail(f"{CI}: jobs.{job_name} needs a positive timeout-minutes")
+        raw_steps = job.get("steps")
+        if not isinstance(raw_steps, list) or not raw_steps:
+            fail(f"{CI}: jobs.{job_name}.steps must be a non-empty list")
+        steps = [object_mapping(step, f"{CI}: jobs.{job_name}.steps") for step in raw_steps]
+        checkout_steps = [step for step in steps if str(step.get("uses", "")).startswith("actions/checkout@")]
+        if len(checkout_steps) != 1:
+            fail(f"{CI}: jobs.{job_name} must contain exactly one checkout step")
+        checkout_with = object_mapping(checkout_steps[0].get("with"), f"{CI}: jobs.{job_name}.checkout.with")
+        if checkout_with.get("persist-credentials") != "false":
+            fail(f"{CI}: jobs.{job_name} checkout must disable persisted credentials")
+        for step in steps:
+            uses = step.get("uses")
+            if isinstance(uses, str) and not uses.startswith("./") and PINNED_ACTION_RE.fullmatch(uses) is None:
+                fail(f"{CI}: jobs.{job_name} action must use a full commit SHA: {uses}")
+        python_steps = [
+            step
+            for step in steps
+            if str(step.get("uses", "")).startswith(("actions/setup-python@", "astral-sh/setup-uv@"))
+        ]
+        if len(python_steps) != 1:
+            fail(f"{CI}: jobs.{job_name} must contain exactly one Python setup step")
+        python_with = object_mapping(python_steps[0].get("with"), f"{CI}: jobs.{job_name}.python.with")
+        if python_with.get("python-version") != "${{ env.PYTHON_VERSION }}":
+            fail(f"{CI}: jobs.{job_name} must use the shared Python version")
+
+    monitor_job = object_mapping(jobs["monitor-external-contracts"], f"{CI}: monitor job")
+    if monitor_job.get("if") != "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'":
+        fail(f"{CI}: external monitoring must be limited to schedule and manual dispatch")
+    monitor_steps = [
+        object_mapping(step, f"{CI}: monitor step")
+        for step in monitor_job["steps"]
+        if isinstance(step, dict)
+    ]
+    freshness_steps = [step for step in monitor_steps if step.get("run") == "python3 scripts/check-expiry.py"]
+    if len(freshness_steps) != 1 or freshness_steps[0].get("if") != "${{ !cancelled() }}":
+        fail(f"{CI}: scheduled freshness must run independently after URL monitoring")
 
     dependabot = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))
     if not isinstance(dependabot, dict) or not isinstance(dependabot.get("updates"), list):
@@ -430,6 +476,15 @@ def validate_codex_eval() -> None:
         classification.get("properties"),
         f"{CODEX_SCHEMA}: properties.classification.properties",
     )
+    archetype_schema = object_mapping(
+        properties.get("archetype"),
+        f"{CODEX_SCHEMA}: properties.classification.properties.archetype",
+    )
+    raw_archetypes = archetype_schema.get("enum")
+    if not isinstance(raw_archetypes, list) or not all(isinstance(archetype, str) for archetype in raw_archetypes):
+        fail(f"{CODEX_SCHEMA}: archetype enum must be a string list")
+    if set(raw_archetypes) != ARCHETYPES:
+        fail(f"{CODEX_SCHEMA}: archetypes must match the behavioral contract")
     boundary_schema = object_mapping(
         properties.get("boundaries"),
         f"{CODEX_SCHEMA}: properties.classification.properties.boundaries",
@@ -447,6 +502,8 @@ def validate_codex_eval() -> None:
             fail(f"{path}: evaluation prompt must be non-empty")
     for case_id in sorted(CODEX_CASE_IDS):
         contract = load_case_contract(ROOT / "evals/cases", case_id)
+        if contract.archetype not in ARCHETYPES:
+            fail(f"evals/cases/{case_id}.json: unknown archetype {contract.archetype!r}")
         if contract.boundaries != BOUNDARIES:
             fail(f"evals/cases/{case_id}.json: boundaries must match the behavioral contract")
 

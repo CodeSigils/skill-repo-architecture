@@ -14,7 +14,7 @@ from pathlib import Path
 from time import monotonic
 from typing import Any
 
-from evaluation_contract import load_case_contract
+from evaluation_contract import fixture_path_is_safe, load_case_contract
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL_DIR = ROOT / "skills/repo-architecture-skill"
@@ -35,6 +35,14 @@ TOKEN_FIELDS = (
 )
 
 
+def positive_int(value: str) -> int:
+    """Parse a strictly positive CLI integer."""
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("value must be greater than zero")
+    return parsed
+
+
 def timestamp(value: datetime) -> str:
     return value.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
@@ -52,10 +60,10 @@ def prepare_fixture(root: Path, case_id: str) -> None:
     """Create an isolated fixture from a shared case contract."""
     if root.exists():
         raise FileExistsError(f"fixture path already exists: {root}")
+    contract = load_case_contract(CASE_DIR, case_id)
     installed = root / ".agents/skills/repo-architecture-skill"
     installed.parent.mkdir(parents=True)
     shutil.copytree(SKILL_DIR, installed)
-    contract = load_case_contract(CASE_DIR, case_id)
     fixture_root = root.resolve()
     for relative, content in contract.fixture_files.items():
         path = (root / relative).resolve()
@@ -258,6 +266,17 @@ def run_self_tests() -> int:
             pass
         else:
             raise AssertionError("unsafe case IDs must fail")
+        assert fixture_path_is_safe("src/example.py")
+        assert not fixture_path_is_safe("../escape.py")
+        assert not fixture_path_is_safe("src//example.py")
+        assert not fixture_path_is_safe(".")
+        assert positive_int("1") == 1
+        try:
+            positive_int("0")
+        except argparse.ArgumentTypeError:
+            pass
+        else:
+            raise AssertionError("non-positive timeouts must fail")
     print("PASS: run-codex-regression.py self-tests")
     return 0
 
@@ -277,7 +296,7 @@ def main() -> int:
         "--expected-codex-version",
         help="Fail before evaluation unless codex --version contains this text.",
     )
-    parser.add_argument("--timeout-seconds", type=int, default=900)
+    parser.add_argument("--timeout-seconds", type=positive_int, default=900)
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()

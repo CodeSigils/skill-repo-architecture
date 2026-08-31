@@ -55,8 +55,15 @@ def scan_file(path: Path) -> list[tuple[Path, int, str, str]]:
 
 
 def main() -> int:
+    if not SKILLS_DIR.is_dir():
+        print(f"FAIL: skills directory is missing: {SKILLS_DIR}", file=sys.stderr)
+        return 1
     violations: list[tuple[Path, int, str, str]] = []
-    for path in sorted(SKILLS_DIR.rglob("*.md")):
+    skill_files = sorted(SKILLS_DIR.rglob("*.md"))
+    if not skill_files:
+        print(f"FAIL: no Markdown skill files found under {SKILLS_DIR}", file=sys.stderr)
+        return 1
+    for path in skill_files:
         try:
             violations.extend(scan_file(path))
         except OSError as exc:

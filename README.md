@@ -256,6 +256,9 @@ uv run --locked python scripts/validate.py --self-test
 uv run --locked python scripts/run-codex-regression.py --self-test
 uv run --locked python scripts/grade-codex-regression.py --self-test
 uv run --locked python .github/scripts/check-portability.py
+uv run --locked python scripts/verify-urls.py --self-test
+uv run --locked python scripts/check-expiry.py --self-test
+uv run --locked python scripts/check-expiry.py
 uv run --locked ruff check scripts .github/scripts
 ```
 
@@ -266,9 +269,10 @@ and provider state:
 uv run --locked python scripts/verify-urls.py
 ```
 
-CI runs deterministic checks on pull requests and external monitoring only on
-schedule or manual dispatch. Runtime-specific behavior remains a separate,
-non-blocking certification activity.
+CI runs deterministic checks on pull requests, freshness checks on every lane,
+and live external monitoring only on schedule or manual dispatch.
+Runtime-specific behavior remains a separate, non-blocking certification
+activity.
 
 ## Maintainer ownership
 

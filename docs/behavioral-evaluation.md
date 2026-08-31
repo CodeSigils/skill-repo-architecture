@@ -8,12 +8,14 @@ optional maintainer evidence.
 
 ## Cases
 
-The bounded evaluation has two scenarios:
+The bounded evaluation has two positive cases plus one shared negative scenario:
 
 1. `architecture-duplicate-mirror` asks for a read-only architecture audit of a
    Markdown-only skill repository containing an undeclared duplicate root
    `SKILL.md`.
-2. The negative scenario asks about a narrow parser defect and must not activate
+2. `markdown-only-discovery-skill` checks that volatile external monitoring is
+   separated from deterministic pull-request validation.
+3. The negative scenario asks about a narrow parser defect and must not activate
    the repository-architecture workflow.
 
 The positive result follows `evals/codex/result.schema.json`. It retains the
@@ -54,6 +56,10 @@ The evaluated agent receives a read-only sandbox. Each run preserves positive
 and negative transcripts, final results, stderr, deterministic grade, runtime
 metadata, duration, usage when emitted, and the tested repository revision
 under ignored `artifacts/codex-regression/`.
+
+Use `--prepare-only` to inspect a generated fixture without running Codex. With
+no `--fixture-dir`, the fixture persists beneath the selected `--output-dir` (or
+the default ignored artifacts directory) instead of using temporary storage.
 
 A single passing run verifies one payload, case, runtime, and model combination;
 it is not a reliability baseline. Preserve failures and environment limitations
