@@ -28,7 +28,7 @@ from evidence_manifest import EvidenceManifest, load_evidence_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "docs" / "evidence-urls.json"
-MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+MAX_RESPONSE_BYTES = 6 * 1024 * 1024
 
 
 @dataclass(frozen=True)
