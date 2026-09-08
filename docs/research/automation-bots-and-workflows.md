@@ -19,6 +19,19 @@ The `github-actions[bot]` identity is the execution identity for workflow jobs,
 not evidence that a workflow has broad write authority. Effective permissions
 come from the workflow `permissions` block and any job-level override.
 
+## Version updates and security updates
+
+Ordinary Dependabot version updates follow this repository's weekly schedule,
+ecosystem-specific grouping, labels, and two-PR cap. They keep the pinned
+maintainer toolchain current but do not by themselves indicate a vulnerability.
+
+Dependabot security updates are advisory-driven responses to known vulnerable
+dependencies. Do not assume they arrive on the weekly schedule or are governed
+by the same grouping behavior as ordinary version updates. Treat the advisory,
+affected dependency, lockfile change, and test result as separate review
+evidence. This repository does not auto-merge either type: a maintainer still
+reviews the diff and green checks before merging.
+
 ## Current configuration
 
 Dependabot checks both ecosystems weekly:
