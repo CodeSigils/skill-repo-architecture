@@ -1,4 +1,4 @@
-"""Reject expired documentation and external-evidence freshness markers."""
+"""Reject expired freshness markers and report aging pinned evidence."""
 
 from __future__ import annotations
 
@@ -7,13 +7,14 @@ import sys
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from evidence_manifest import load_evidence_manifest
+from evidence_manifest import EvidenceEntry, load_evidence_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPIRES_RE = re.compile(r"^\*\*Expires:\*\*(?: (?P<date>.*))?$", re.MULTILINE)
 LAST_REVIEWED_RE = re.compile(r"^Last reviewed: (?P<date>\d{4}-\d{2}-\d{2})\.$", re.MULTILINE)
 SECURITY_REVIEW_MAX_AGE_DAYS = 365
 EXTERNAL_EVIDENCE_MAX_AGE_DAYS = 90
+SNAPSHOT_REVIEW_AGE_DAYS = 180
 
 
 def parse_date(value: str, context: str, problems: list[str]) -> date | None:
@@ -66,26 +67,37 @@ def check_security_review(today: date, problems: list[str]) -> None:
             problems.append(f"SECURITY.md: review is {age} days old")
 
 
-def check_external_evidence(today: date, problems: list[str]) -> None:
+def check_external_evidence(
+    today: date,
+    problems: list[str],
+    entries: tuple[EvidenceEntry, ...] | None = None,
+) -> list[str]:
+    """Check active live evidence and return non-blocking snapshot reminders."""
     path = ROOT / "docs" / "evidence-urls.json"
-    try:
-        entries = load_evidence_manifest(path).entries
-    except (OSError, ValueError) as exc:
-        problems.append(f"{path.relative_to(ROOT)}: {exc}")
-        return
+    if entries is None:
+        try:
+            entries = load_evidence_manifest(path).entries
+        except (OSError, ValueError) as exc:
+            problems.append(f"{path.relative_to(ROOT)}: {exc}")
+            return []
+    reminders: list[str] = []
     for index, entry in enumerate(entries):
         context = f"{path.relative_to(ROOT)}: urls[{index}]"
-        if entry.status != "active" or not entry.monitor:
+        if entry.status != "active":
             continue
         value = entry.last_verified
         if value is None:
-            problems.append(f"{context}: missing last_verified")
+            if entry.monitor:
+                problems.append(f"{context}: missing last_verified")
             continue
         verified = parse_date(value, context, problems)
         if verified is not None:
             age = age_in_days(verified, today, context, problems)
-            if age is not None and age > EXTERNAL_EVIDENCE_MAX_AGE_DAYS:
+            if entry.monitor and age is not None and age > EXTERNAL_EVIDENCE_MAX_AGE_DAYS:
                 problems.append(f"{context}: last verified {age} days ago")
+            if not entry.monitor and age is not None and age > SNAPSHOT_REVIEW_AGE_DAYS:
+                reminders.append(f"{entry.name}: pinned snapshot was recorded {age} days ago")
+    return reminders
 
 
 def run_self_tests() -> int:
@@ -104,6 +116,19 @@ def run_self_tests() -> int:
         "test.md: invalid date 'TBD'",
         "test.md: invalid expiry marker",
     ]
+    snapshot = EvidenceEntry(
+        name="snapshot",
+        url="https://example.com/snapshot",
+        expected_statuses=(200,),
+        monitor=False,
+        content_type=None,
+        required_text=(),
+        source_section="test",
+        status="active",
+        last_verified="2026-02-01",
+        notes=None,
+    )
+    assert check_external_evidence(today, [], (snapshot,)) == ["snapshot: pinned snapshot was recorded 210 days ago"]
     print("PASS: check-expiry.py self-tests")
     return 0
 
@@ -115,7 +140,7 @@ def main() -> int:
     problems: list[str] = []
     check_explicit_expiries(today, problems)
     check_security_review(today, problems)
-    check_external_evidence(today, problems)
+    reminders = check_external_evidence(today, problems)
 
     if problems:
         print("Freshness check failures:")
@@ -123,6 +148,10 @@ def main() -> int:
             print(f"- {item}")
         return 1
     print("no expired freshness markers")
+    if reminders:
+        print("Pinned snapshot review reminders (non-blocking):")
+        for item in reminders:
+            print(f"- {item}")
     return 0
 
 

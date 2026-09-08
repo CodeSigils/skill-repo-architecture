@@ -237,7 +237,8 @@ Maintainer research is preserved as dated evidence, not runtime authority:
   maintainer boundaries.
 
 Refresh volatile claims before using them to change compatibility status or
-runtime guidance.
+runtime guidance. Pinned repository snapshots remain historical provenance; a
+non-blocking reminder requests review after 180 days rather than deleting them.
 
 ## Verify
 
