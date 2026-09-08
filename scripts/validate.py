@@ -356,8 +356,8 @@ def validate_security_contract() -> None:
         if entry.get("open-pull-requests-limit") != 2:
             fail(f"{DEPENDABOT}: {ecosystem} must cap open PRs at 2")
         expected_labels = {
-            "github-actions": {"dependencies", "github-actions"},
-            "uv": {"dependencies", "python"},
+            "github-actions": {"dependencies", "github_actions"},
+            "uv": {"dependencies", "python:uv"},
         }[ecosystem]
         if set(entry.get("labels", [])) != expected_labels:
             fail(f"{DEPENDABOT}: {ecosystem} labels must be {sorted(expected_labels)}")
