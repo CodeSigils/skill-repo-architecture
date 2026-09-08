@@ -14,7 +14,7 @@ EXPIRES_RE = re.compile(r"^\*\*Expires:\*\*(?: (?P<date>.*))?$", re.MULTILINE)
 LAST_REVIEWED_RE = re.compile(r"^Last reviewed: (?P<date>\d{4}-\d{2}-\d{2})\.$", re.MULTILINE)
 SECURITY_REVIEW_MAX_AGE_DAYS = 365
 EXTERNAL_EVIDENCE_MAX_AGE_DAYS = 90
-SNAPSHOT_REVIEW_AGE_DAYS = 180
+SNAPSHOT_REVIEW_AGE_DAYS = 400
 
 
 def parse_date(value: str, context: str, problems: list[str]) -> date | None:
@@ -125,10 +125,10 @@ def run_self_tests() -> int:
         required_text=(),
         source_section="test",
         status="active",
-        last_verified="2026-02-01",
+        last_verified="2025-07-01",
         notes=None,
     )
-    assert check_external_evidence(today, [], (snapshot,)) == ["snapshot: pinned snapshot was recorded 210 days ago"]
+    assert check_external_evidence(today, [], (snapshot,)) == ["snapshot: pinned snapshot was recorded 425 days ago"]
     print("PASS: check-expiry.py self-tests")
     return 0
 

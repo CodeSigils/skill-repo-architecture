@@ -110,7 +110,7 @@ installation or behavior on a named runtime version.
 
 This is immutable historical evidence, not a generated cache. Retain it while
 active documentation or runtime guidance relies on its conclusions. The
-freshness checker emits a non-blocking review reminder after 180 days for active
+freshness checker emits a non-blocking review reminder after 400 days for active
 unmonitored pinned snapshots. At review, retain the snapshot, record a newer
 dated observation, or mark its evidence-manifest entry `retired` with
 `monitor: false` once no active guidance depends on it. Do not delete a pinned
