@@ -345,6 +345,23 @@ def validate_security_contract() -> None:
     ecosystems = {entry.get("package-ecosystem") for entry in dependabot["updates"]}
     if ecosystems != {"github-actions", "uv"}:
         fail(f"{DEPENDABOT}: must monitor github-actions and uv")
+    for entry in dependabot["updates"]:
+        ecosystem = entry["package-ecosystem"]
+        if entry.get("open-pull-requests-limit") != 2:
+            fail(f"{DEPENDABOT}: {ecosystem} must cap open PRs at 2")
+        expected_labels = {
+            "github-actions": {"dependencies", "github-actions"},
+            "uv": {"dependencies", "python"},
+        }[ecosystem]
+        if set(entry.get("labels", [])) != expected_labels:
+            fail(f"{DEPENDABOT}: {ecosystem} labels must be {sorted(expected_labels)}")
+        groups = object_mapping(entry.get("groups"), f"{DEPENDABOT}: {ecosystem}.groups")
+        group_name = "actions-maintenance" if ecosystem == "github-actions" else "uv-maintenance"
+        maintenance = object_mapping(groups.get(group_name), f"{DEPENDABOT}: {ecosystem}.{group_name}")
+        if maintenance.get("patterns") != ["*"]:
+            fail(f"{DEPENDABOT}: {ecosystem} maintenance group must match all dependencies")
+        if maintenance.get("update-types") != ["minor", "patch"]:
+            fail(f"{DEPENDABOT}: {ecosystem} maintenance group must contain only minor and patch updates")
 
 
 def validate_maintainer_environment() -> None:
