@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -29,6 +30,9 @@ from evidence_manifest import EvidenceManifest, load_evidence_manifest
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "docs" / "evidence-urls.json"
 MAX_RESPONSE_BYTES = 6 * 1024 * 1024
+MAX_ATTEMPTS = 3
+RETRY_BACKOFF_SECONDS = 1
+TRANSIENT_HTTP_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 
 @dataclass(frozen=True)
@@ -61,37 +65,52 @@ def check_url(
         headers={"User-Agent": "repo-architecture-skill-url-verify"},
     )
 
-    try:
-        with urllib.request.urlopen(request, timeout=10) as response:
-            status = response.status
-            body: str | None = None
-            if content_type == "json" or required_text:
-                try:
-                    payload = response.read(MAX_RESPONSE_BYTES + 1)
-                    if len(payload) > MAX_RESPONSE_BYTES:
-                        return UrlCheckResult(status, "CONTENT_TOO_LARGE")
-                    body = payload.decode("utf-8")
-                except UnicodeDecodeError:
-                    return UrlCheckResult(status, "INVALID_ENCODING")
-            if content_type == "json" and body is not None:
-                try:
-                    json.loads(body)
-                except (json.JSONDecodeError, ValueError):
-                    return UrlCheckResult(status, "INVALID_JSON")
-            if required_text and body is not None:
-                return UrlCheckResult(status, check_required_text(body, required_text))
-            if content_type == "json":
-                return UrlCheckResult(status, "VALID")
-            return UrlCheckResult(status, None)
+    for attempt in range(MAX_ATTEMPTS):
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                status = response.status
+                if status in TRANSIENT_HTTP_STATUSES and attempt < MAX_ATTEMPTS - 1:
+                    time.sleep(RETRY_BACKOFF_SECONDS * (2**attempt))
+                    continue
+                body: str | None = None
+                if content_type == "json" or required_text:
+                    try:
+                        payload = response.read(MAX_RESPONSE_BYTES + 1)
+                        if len(payload) > MAX_RESPONSE_BYTES:
+                            return UrlCheckResult(status, "CONTENT_TOO_LARGE")
+                        body = payload.decode("utf-8")
+                    except UnicodeDecodeError:
+                        return UrlCheckResult(status, "INVALID_ENCODING")
+                if content_type == "json" and body is not None:
+                    try:
+                        json.loads(body)
+                    except (json.JSONDecodeError, ValueError):
+                        return UrlCheckResult(status, "INVALID_JSON")
+                if required_text and body is not None:
+                    return UrlCheckResult(status, check_required_text(body, required_text))
+                if content_type == "json":
+                    return UrlCheckResult(status, "VALID")
+                return UrlCheckResult(status, None)
 
-    except urllib.error.HTTPError as exc:
-        return UrlCheckResult(exc.code, f"HTTP {exc.code}")
-    except urllib.error.URLError as exc:
-        return UrlCheckResult("ERROR", str(exc.reason))
-    except TimeoutError:
-        return UrlCheckResult("TIMEOUT", "timeout")
-    except ValueError as exc:
-        return UrlCheckResult("ERROR", f"invalid URL: {exc}")
+        except urllib.error.HTTPError as exc:
+            if exc.code in TRANSIENT_HTTP_STATUSES and attempt < MAX_ATTEMPTS - 1:
+                time.sleep(RETRY_BACKOFF_SECONDS * (2**attempt))
+                continue
+            return UrlCheckResult(exc.code, f"HTTP {exc.code}")
+        except urllib.error.URLError as exc:
+            if attempt < MAX_ATTEMPTS - 1:
+                time.sleep(RETRY_BACKOFF_SECONDS * (2**attempt))
+                continue
+            return UrlCheckResult("ERROR", str(exc.reason))
+        except TimeoutError:
+            if attempt < MAX_ATTEMPTS - 1:
+                time.sleep(RETRY_BACKOFF_SECONDS * (2**attempt))
+                continue
+            return UrlCheckResult("TIMEOUT", "timeout")
+        except ValueError as exc:
+            return UrlCheckResult("ERROR", f"invalid URL: {exc}")
+
+    raise AssertionError("URL check exhausted without a result")
 
 
 def classify_status(status: int | str, expected_statuses: list[int]) -> str:
@@ -121,6 +140,17 @@ def check_self_test() -> None:
     with patch("urllib.request.urlopen", return_value=oversized_response):
         assert check_url("https://example.com", required_text=["anchor"]).content == "CONTENT_TOO_LARGE"
     print("  PASS  bounded response reading")
+
+    retry_response = MagicMock()
+    retry_response.__enter__.return_value = retry_response
+    retry_response.status = 200
+    with (
+        patch("urllib.request.urlopen", side_effect=[urllib.error.URLError("temporary"), retry_response]),
+        patch("time.sleep") as sleep,
+    ):
+        assert check_url("https://example.com").status == 200
+        sleep.assert_called_once_with(RETRY_BACKOFF_SECONDS)
+    print("  PASS  transient URL retry")
 
     # Test evidence manifest loading via the shared loader
     with tempfile.TemporaryDirectory() as directory:
