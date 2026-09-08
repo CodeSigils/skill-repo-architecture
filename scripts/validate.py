@@ -261,6 +261,10 @@ def validate_security_contract() -> None:
         if rule not in ignored:
             fail(f"{GITIGNORE}: missing local-secret rule {rule!r}")
 
+    # BaseLoader deliberately keeps every YAML scalar as text. This lets the
+    # policy validator compare workflow expressions without implicit coercion.
+    # The workflow is repository-controlled input; no YAML object construction
+    # or arbitrary tags are permitted by this loader.
     workflow_raw: object = yaml.load(CI.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     workflow = object_mapping(workflow_raw, str(CI))
     permissions = object_mapping(workflow.get("permissions"), f"{CI}: permissions")
@@ -269,6 +273,8 @@ def validate_security_contract() -> None:
     workflow_env = object_mapping(workflow.get("env"), f"{CI}: env")
     if workflow_env.get("PYTHON_VERSION") != "3.13":
         fail(f"{CI}: PYTHON_VERSION must be 3.13")
+    if workflow_env.get("UV_VERSION") != "0.11.30":
+        fail(f"{CI}: UV_VERSION must be 0.11.30")
     concurrency = object_mapping(workflow.get("concurrency"), f"{CI}: concurrency")
     if concurrency.get("group") != "${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}":
         fail(f"{CI}: concurrency group must keep event types independent")

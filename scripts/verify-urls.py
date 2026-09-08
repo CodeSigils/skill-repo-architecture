@@ -24,6 +24,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from urllib.parse import urlsplit
 
 from evidence_manifest import EvidenceManifest, load_evidence_manifest
 
@@ -59,6 +60,11 @@ def check_url(
 
     Read response bodies only when JSON or semantic anchors need validation.
     """
+    # Keep the scheme boundary next to urlopen so future callers cannot
+    # accidentally introduce file/custom-URL access.
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return UrlCheckResult("ERROR", "invalid URL scheme or host")
     request = urllib.request.Request(
         url,
         method="GET",
@@ -140,6 +146,8 @@ def check_self_test() -> None:
     with patch("urllib.request.urlopen", return_value=oversized_response):
         assert check_url("https://example.com", required_text=["anchor"]).content == "CONTENT_TOO_LARGE"
     print("  PASS  bounded response reading")
+    assert check_url("file:///tmp/secret").content == "invalid URL scheme or host"
+    print("  PASS  URL scheme boundary")
 
     retry_response = MagicMock()
     retry_response.__enter__.return_value = retry_response
