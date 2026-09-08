@@ -430,6 +430,11 @@ def validate_readme() -> None:
     errors = local_link_errors(README, ROOT)
     if errors:
         fail("\n".join(errors))
+    documentation_errors = [
+        error for path in sorted((ROOT / "docs").rglob("*.md")) for error in local_link_errors(path, ROOT)
+    ]
+    if documentation_errors:
+        fail("\n".join(documentation_errors))
 
 
 def validate_eval() -> None:

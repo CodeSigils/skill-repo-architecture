@@ -105,3 +105,13 @@ installation or behavior on a named runtime version.
 - GitHub stars and current head counts were excluded because they add volatility
   without improving the architectural conclusion.
 - No runtime installation or workflow test was performed for this snapshot.
+
+## Retention and review
+
+This is immutable historical evidence, not a generated cache. Retain it while
+active documentation or runtime guidance relies on its conclusions. The
+freshness checker emits a non-blocking review reminder after 180 days for active
+unmonitored pinned snapshots. At review, retain the snapshot, record a newer
+dated observation, or mark its evidence-manifest entry `retired` with
+`monitor: false` once no active guidance depends on it. Do not delete a pinned
+snapshot automatically.
