@@ -252,6 +252,7 @@ Run the deterministic suite:
 
 ```bash
 uv run --locked python scripts/validate.py
+uvx --from git+https://github.com/agentskills/agentskills.git@69ef37e9424c0a7ea9dd2293b559e43ec8176379#subdirectory=skills-ref skills-ref validate skills/repo-architecture-skill
 uv run --locked python scripts/validate.py --self-test
 uv run --locked python scripts/run-codex-regression.py --self-test
 uv run --locked python scripts/grade-codex-regression.py --self-test

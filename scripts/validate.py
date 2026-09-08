@@ -336,6 +336,12 @@ def validate_security_contract() -> None:
         step.get("run") == "uv run --locked ruff format --check scripts .github/scripts" for step in deterministic_steps
     ):
         fail(f"{CI}: deterministic checks must enforce maintainer script formatting")
+    if not any(
+        step.get("run")
+        == "uvx --from git+https://github.com/agentskills/agentskills.git@69ef37e9424c0a7ea9dd2293b559e43ec8176379#subdirectory=skills-ref skills-ref validate skills/repo-architecture-skill"
+        for step in deterministic_steps
+    ):
+        fail(f"{CI}: deterministic checks must run the pinned skills-ref validator")
 
     dependabot = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))
     if not isinstance(dependabot, dict) or not isinstance(dependabot.get("updates"), list):
