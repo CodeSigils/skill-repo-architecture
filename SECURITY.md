@@ -79,13 +79,15 @@ Before merging a payload or tooling change:
 
 1. Run `uv sync --locked` and the deterministic verification suite in the
    README.
-2. Confirm the payload inventory contains only the declared Markdown files and
+2. Run the pinned `skills-ref validate` command to verify Agent Skills format
+   conformance independently of the repository's custom validator.
+3. Confirm the payload inventory contains only the declared Markdown files and
    bundled license notice.
-3. Review runtime instructions for destructive commands, privilege escalation,
+4. Review runtime instructions for destructive commands, privilege escalation,
    approval bypass, and sensitive-output requests.
-4. Review dependency and GitHub Action updates; keep the uv lockfile and action
+5. Review dependency and GitHub Action updates; keep the uv lockfile and action
    revisions current.
-5. Keep external URL monitoring separate from deterministic pull-request checks.
-6. Update this policy when the artifact boundary or threat model changes.
+6. Keep external URL monitoring separate from deterministic pull-request checks.
+7. Update this policy when the artifact boundary or threat model changes.
 
 Last reviewed: 2026-07-22.
