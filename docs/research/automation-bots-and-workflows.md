@@ -1,0 +1,81 @@
+# Automation Bots and Workflow Boundaries
+
+> Reviewed: 2026-09-08
+>
+> Evidence type: repository configuration plus official GitHub documentation
+
+This note records what automation can do in this repository and what remains a
+human decision. It is maintainer guidance, not runtime skill content.
+
+## Repository actors
+
+| Actor | Current use here | Effective boundary |
+| --- | --- | --- |
+| `dependabot[bot]` | Proposes UV and GitHub Actions dependency updates | Creates branches and pull requests; does not merge them |
+| `github-actions[bot]` | Runs `validate` and GitHub-managed Dependabot update workflows | Current repository workflow token is read-only; no PR, branch, release, or issue mutation |
+| Human maintainer | Reviews dependency changes and policy exceptions | Merges changes and changes repository settings |
+
+The `github-actions[bot]` identity is the execution identity for workflow jobs,
+not evidence that a workflow has broad write authority. Effective permissions
+come from the workflow `permissions` block and any job-level override.
+
+## Current configuration
+
+Dependabot checks both ecosystems weekly:
+
+- GitHub Actions updates are grouped under `actions-maintenance`;
+- UV development updates are grouped under `uv-maintenance`;
+- only minor and patch updates are grouped;
+- major updates remain separate for manual review;
+- each ecosystem is capped at two open pull requests;
+- labels identify dependency, Python/UV, and GitHub Actions changes.
+
+The repository's `validate` workflow has two lanes:
+
+1. `deterministic` runs on pushes and pull requests. It uses read-only
+   permissions, pinned actions, a pinned UV version, the locked environment,
+   custom repository validation, `skills-ref`, fixture tests, lint, and format
+   checks.
+2. `monitor-external-contracts` runs only on the weekly schedule or manual
+   dispatch. It checks external evidence URLs and freshness markers. Its URL
+   checker retries bounded transient failures but still fails persistent drift.
+
+Merged source branches are deleted by the repository setting. No repository
+workflow creates, approves, merges, rebases, closes, or deletes pull requests.
+Native Dependabot auto-merge is disabled.
+
+## Important GitHub behavior
+
+- A workflow's `GITHUB_TOKEN` is short-lived and scoped to the job. Unspecified
+  permissions are not granted when the workflow sets a restrictive permission
+  block.
+- Events caused by `GITHUB_TOKEN` generally do not recursively trigger new
+  workflow runs. `workflow_dispatch` and `repository_dispatch` are explicit
+  exceptions.
+- Dependabot pull-request workflows should be treated as untrusted dependency
+  changes. They must not receive ordinary repository secrets by default.
+- Grouping reduces review and CI volume; it does not establish that an update
+  is safe. Review the diff and green checks before merging.
+- A successful workflow proves only the checks it actually ran. A skipped
+  external-monitor job on a pull request is expected because that lane is
+  schedule/manual-only.
+
+## Maintainer routine
+
+1. Review Dependabot pull requests weekly.
+2. Merge narrow, green dependency-only updates after inspecting the diff.
+3. Close superseded or stale proposals when a newer grouped update replaces
+   them.
+4. Confirm merged branches are removed automatically.
+5. Investigate failed or ambiguous checks; do not bypass protection merely to
+   clear a queue.
+6. Re-check this note when adding a workflow that writes issues, releases,
+   attestations, pull requests, branches, or repository settings.
+
+## Official references
+
+- [GITHUB_TOKEN security](https://docs.github.com/en/actions/concepts/security/github_token)
+- [Workflow permissions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)
+- [Triggering workflows](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run)
+- [Dependabot pull-request grouping](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/optimizing-pr-creation-version-updates)
+- [Dependabot on GitHub Actions](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-on-actions)
