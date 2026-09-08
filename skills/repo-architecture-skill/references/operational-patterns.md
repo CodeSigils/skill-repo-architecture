@@ -18,6 +18,17 @@ For each proposed control, record:
 
 Reject a control whose invariant or recovery cannot be stated clearly.
 
+## Automation and bot boundaries
+
+Treat Dependabot and workflow bots as actors with narrowly scoped authority, not
+as maintainers. Before recommending automation, record which identity can create
+branches or pull requests, what its `GITHUB_TOKEN` or equivalent permissions
+are, whether secrets are available, and whether its events can trigger another
+workflow. Keep merge, approval, release, branch deletion, and repository-setting
+changes behind explicit policy and human approval unless a separate threat-model
+review justifies otherwise. Grouping dependency updates reduces review volume;
+it does not establish that an update is safe.
+
 ## Execution lanes
 
 ### Deterministic pull-request lane
