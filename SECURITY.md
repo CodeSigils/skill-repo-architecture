@@ -51,6 +51,13 @@ infrastructure and must not be copied into the installed payload.
   commit bodies as evidence.
 - Maintainer scripts are never runtime dependencies and are not invoked by the
   installed skill.
+- The Python validators use assertions for their explicitly requested
+  self-tests, `yaml.BaseLoader` to preserve workflow scalars as text, and
+  subprocesses only for controlled local Git/Codex evaluation commands. These
+  are maintainer-only paths; they do not process untrusted runtime input.
+- External URL checks accept only absolute HTTP(S) URLs, bound response sizes,
+  and retry only a finite set of transient failures. Persistent network or
+  content drift remains a monitor failure.
 - CI actions use immutable revisions, read-only repository permissions, and do
   not persist checkout credentials.
 
